@@ -25,7 +25,7 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "Z", "Zach",
                             "LG", "Lor",
                             "JT", "Jas",
-                            "APA2", "AlexP"
+                            "APA2", "AlexP",
                             "JCH", "Jacob",
                             "AUJ", "Audrey"), ncol=2, byrow=T)
 
