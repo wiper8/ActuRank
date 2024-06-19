@@ -1,0 +1,135 @@
+---
+title: "Documentation"
+author: "William Perron"
+date: '2024-03-22'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+## Théorie derrière le modèle
+
+Il faut modéliser la prob de réussir un coup contre un adversaire, et la prob qu'il réussise son coup contre nous.
+
+On pourrait modéliser la qualité d'un coup. Chaque joueur aurait une prob de retourner un coup selon la qualité reçue, et une prob d'envoyer chaque qualité de coups.
+
+Disons qu'il y a 4 qualité de coups
+0:3, 0 étant raté, 3 étant impossible à retourner. 
+chaque joueur aurait 3*(3-1) = 6 paramètres, soit les probs de retourner chq force selon
+la force reçue.
+Pour simplifier, on va dire que P(frapper B | reçu A) = dbinom(B, k, p)
+p = skill * ((1-A)/(k-1) + 1)
+Skill~beta(2, 2)
+
+
+```{r}
+transition_matrix <- function(skill, k = 3) {
+  P <- matrix(NA, nrow = k+1, ncol = k+1, dimnames = list(paste0("reçu F", 0:k), paste0("frappé F", 0:k)))
+  P[-1, ] <- t(sapply(1:k, function(ki) dbinom(0:k, k, skill * ((1 - ki) / (k - 1) + 1))))
+  P[1, k+1] <- 1
+  P[1, -(k+1)] <- 0
+  P
+}
+
+transition_matrix(0.8)
+
+prob_win_point_1vs1_knowing_skills <- function(SA, SB) {
+  k <- 3
+  MA <- transition_matrix(SA, k=k)
+  MB <- transition_matrix(SB, k=k)
+  
+  M <- matrix(0, 2*nrow(MA), 2*ncol(MA), dimnames = list(
+    c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
+    c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
+  ))
+  M[1:nrow(MA), -1:-nrow(MA)] <- MA
+  M[-1:-nrow(MA), 1:nrow(MA)] <- MB
+  
+  for(i in 1:5) {
+    M <- M %*% M
+  }
+  
+  # prob que A gagne sachant que A sert +  prob que A gagne sachant que B sert.
+  0.5 * (M[3, 1]+ M[(k+1)+3, 2*(k+1)])
+}
+
+prob_win_point_1vs1_knowing_skills(0.9, 0.8)
+
+
+prob_win_point_2vs2_knowing_skills <- function(SA1, SA2, SB1, SB2) {
+  k <- 3
+  MA1 <- transition_matrix(SA1, k=k)
+  MA2 <- transition_matrix(SA2, k=k)
+  MB1 <- transition_matrix(SB1, k=k)
+  MB2 <- transition_matrix(SB2, k=k)
+  
+  #A1->B1->A2->B2
+  M1 <- matrix(0, 4*nrow(MA), 4*ncol(MA), dimnames = list(
+    c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+    c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  ))
+  
+  #A1->B2->A2->B1
+  M2 <- matrix(0, 4*nrow(MA), 4*ncol(MA), dimnames = list(
+    dimnames(M1)[[1]],
+    c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
+  ))
+  
+  
+  M1[1:nrow(MA1), ncol(MB1)+ncol(MB2) + 1:ncol(MA1)] <- MA1
+  M1[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + ncol(MA1) + 1:ncol(MA2)] <- MA2
+  M1[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), ncol(MB2) + 1:ncol(MB1)] <- MB1
+  M1[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), 1:ncol(MB2)] <- MB2
+  
+  M2[1:nrow(MA1), ncol(MB1)+ncol(MB2)+ncol(MA2) + 1:ncol(MA1)] <- MA1
+  M2[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + 1:ncol(MA2)] <- MA2
+  M2[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), 1:ncol(MB1)] <- MB1
+  M2[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), ncol(MB1) + 1:ncol(MB2)] <- MB2
+  
+  
+  for(i in 1:5) {
+    M1 <- M1 %*% M1
+  }
+  for(i in 1:5) {
+    M2 <- M2 %*% M2
+  }
+  
+  
+  
+  0.25 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])+
+    0.25 * (M2[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])
+  
+}
+```
+
+
+
+chaque individu va avoir une distribution de skill.
+
+```{r}
+fSA_SB <- expand.grid(SA=seq(0, 1, 0.05), SB = seq(0, 1, 0.05))
+
+fSA_SB[, "prob"] <- dbeta(fSA_SB[, "SA"], 6, 2) * dbeta(fSA_SB[, "SB"], 7, 3)
+
+fSA_SB <- fSA_SB[fSA_SB[, "prob"] > 0, ]
+
+fSA_SB[, "prob"] <- fSA_SB[, "prob"] / sum(fSA_SB[, "prob"])
+
+sum(fSA_SB[, "prob"] * apply(fSA_SB, 1, function(S) prob_win_point_1vs1_knowing_skills(S[1], S[2])))
+```
+
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
