@@ -1,12 +1,12 @@
+include_exact_points <- F
+
 source("src/import.R")
 source("src/update_scores.R")
 source("src/plots.R")
 
+scores_stats(scores, players)
 
-#show_current_ranking(update_scores(players, scores[1:34, ]))
-
-#TODO games played per players
-#TODO points gained/loss per players
+games_matchups(scores, players)
 
 tmp <- show_ranking_history(scores)
 players <- tmp[[1]]
