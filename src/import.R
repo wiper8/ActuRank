@@ -1,6 +1,7 @@
 source("src/players.R")
 source("src/scores.R")
 
+
 scores <- scores_init()
 
 players <- list()
@@ -10,6 +11,9 @@ colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "
 data <- data[, 1:9]
 data <- data[-1, ]
 data <- data[data[, "joueur_B1"] != "", ]
+data$score_A <- as.numeric(data$score_A)
+data$score_B <- as.numeric(data$score_B)
+data$win <- as.numeric(data$win)
 
 mapping_joueurs <- matrix(c("W", "Will",
                             "É", "Éti",
@@ -48,10 +52,19 @@ for(d in as.character(dates)) {
   print(d)
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
-  scores <- add_scores(
-    subdata[, c(1:5, 8)],
-    scores,
-    date = d
-  )
+  if(include_exact_points) {
+    scores <- add_scores(
+      do.call(rbind, apply(subdata[, 1:8], 1, scores_per_pt_converter)),
+      scores,
+      date = d
+    )
+  } else {
+    scores <- add_scores(
+      subdata[, 1:8],
+      scores,
+      date = d
+    )
+  }
+  
 }
 
