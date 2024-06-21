@@ -37,7 +37,7 @@ scores_per_pt_converter <- function(score) {
     res[(A + 1) : (A + B), "score_A"] <- 0
     res[(A + 1) : (A + B), "score_B"] <- 1
   }
-  res$game_length <- 1
+  res$game_len <- 1
   res
 }
 
