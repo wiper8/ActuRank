@@ -8,12 +8,24 @@ calculate_skill <- function(distr_mu) {
 post_marginal_per_player <- function(posteriori) {
   if(ncol(posteriori) == 3) {
     posteriori <- setDT(as.data.frame(posteriori))
+    
+    #simplifier pour réduire les erreurs d'arrondi de by = .() dans data.table
+    posteriori[, mu1 := round(mu1, 3)]
+    posteriori[, mu2 := round(mu2, 3)]
+    
     list(
       as.data.frame(posteriori[, .(p=sum(p)), by = .(mu1)][, .(mu=mu1, p=p)]),
       as.data.frame(posteriori[, .(p=sum(p)), by = .(mu2)][, .(mu=mu2, p=p)])
     )
   } else {
     posteriori <- setDT(as.data.frame(posteriori))
+    
+    #simplifier pour réduire les erreurs d'arrondi de by = .() dans data.table
+    posteriori[, muA1 := round(muA1, 3)]
+    posteriori[, muA2 := round(muA2, 3)]
+    posteriori[, muB1 := round(muB1, 3)]
+    posteriori[, muB2 := round(muB2, 3)]
+    
     list(
       as.data.frame(posteriori[, .(p=sum(p)), by = .(muA1)][, .(mu=muA1, p=p)]),
       as.data.frame(posteriori[, .(p=sum(p)), by = .(muA2)][, .(mu=muA2, p=p)]),
@@ -216,6 +228,9 @@ posteriori_2vs2 <- function(distr_SA1, distr_SA2,
 posteriori_of_game_simplified <- function(players, score) {
   if(is.na(score[, "joueur_A1"])) {
     
+    players[[score[, "joueur_A2"]]] <- round_up_domain(players[[score[, "joueur_A2"]]])
+    players[[score[, "joueur_B1"]]] <- round_up_domain(players[[score[, "joueur_B1"]]])
+    
     tmp <- distr_simplifier_1vs1(distr1 = players[[score[, "joueur_A2"]]],
                                  distr2 = players[[score[, "joueur_B1"]]])
     
@@ -251,6 +266,11 @@ posteriori_of_game_simplified <- function(players, score) {
     distrA2 <- distr_simplifier_top_n(players[[score[, "joueur_A2"]]], 10)
     distrB1 <- distr_simplifier_top_n(players[[score[, "joueur_B1"]]], 10)
     distrB2 <- distr_simplifier_top_n(players[[score[, "joueur_B2"]]], 10)
+    
+    players[[score[, "joueur_A1"]]] <- round_up_domain(players[[score[, "joueur_A1"]]])
+    players[[score[, "joueur_A2"]]] <- round_up_domain(players[[score[, "joueur_A2"]]])
+    players[[score[, "joueur_B1"]]] <- round_up_domain(players[[score[, "joueur_B1"]]])
+    players[[score[, "joueur_B2"]]] <- round_up_domain(players[[score[, "joueur_B2"]]])
     
     posteriori <- posteriori_2vs2(distr_SA1 = distrA1,
                                   distr_SA2 = distrA2,
