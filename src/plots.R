@@ -121,8 +121,13 @@ show_detailed_skill <- function(players) {
   
   players <- lapply(players, function(distr) {
     y <- sapply(init_distr()[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
+    #pour simplifier davantage
+    mu <- init_distr()[, "mu"]
+    seuil <- 0.00001
+    mu <- mu[y > seuil]
+    y <- y[y > seuil]
     y <- y/sum(y)
-    cbind(mu=init_distr()[, "mu"], p=y)
+    cbind(mu=mu, p=y)
   })
   
   
