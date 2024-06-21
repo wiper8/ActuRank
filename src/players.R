@@ -1,6 +1,4 @@
-#TODO ajouter possible drift dans le temps
 #TODO shiny app?
-#TODO excel partagé et trouver une manière de s'assurer que ce soit de bonnes données
 #TODO se questionner si le score des gens devrait varier si les autres jouent en leur absence.
 #TODO vérifier si l'ordonnancement des parties a un impact.
 
@@ -13,6 +11,12 @@ init_distr <- function() {
   mu1 <- qbeta(seq(0, 1, length.out = dim_len_mu), 2, 2) * 99 + 1
   distr_mu1 <- cbind("mu"=mu1, "p"=1/dim_len_mu)
   cbind(mu=mu1, p = 1/dim_len_mu)
+}
+
+round_up_domain <- function(distr) {
+  distr <- setDT(as.data.frame(distr))
+  distr[, mu := round(mu, 3)]
+  as.matrix(distr[, .(p = sum(p)), by = mu][order(mu)])
 }
 
 distr_simplifier <- function(distr) {
@@ -44,6 +48,8 @@ drift <- function(distr, a = 0.15) {
 
 distr_simplifier_top_n <- function(distr, n = 10) {
   #print("simplifier_top_n")
+  distr <- rbind(c(distr[1, 1, drop=F], 0), distr) #pour créer une masse à la première valeur
+  
   repart <- cumsum(distr[, "p"])
   
   y <- seq(1/(n+1), 1-1/(n+1), length.out=n)
