@@ -119,19 +119,26 @@ show_detailed_skill <- function(players) {
     player = names(ranks)
   )
   
-  players <- lapply(players, function(distr) {
+  players2 <- lapply(players, function(distr) {
     y <- sapply(init_distr()[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
+    
     #pour simplifier davantage
     mu <- init_distr()[, "mu"]
-    seuil <- 0.00001
-    mu <- mu[y > seuil]
-    y <- y[y > seuil]
+    keep <- y > max(y) / 1000
+    id_first <- which(keep)[1]
+    id_last <- tail(which(keep), 1)
+    if(id_first > 1) keep[id_first - 1] <- TRUE
+    if(id_last < length(keep)) keep[id_last - 1] <- TRUE
+    
+    mu <- mu[keep]
+    y <- y[keep]
     y <- y/sum(y)
+    
     cbind(mu=mu, p=y)
   })
   
   
-  graph_data2 <- do.call(rbind, mapply(function(x, n) data.frame(x, "player"=n), players, names(players), SIMPLIFY = FALSE))
+  graph_data2 <- do.call(rbind, mapply(function(x, n) data.frame(x, "player"=n), players2, names(players2), SIMPLIFY = FALSE))
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
