@@ -50,7 +50,7 @@ distr_simplifier_top_n <- function(distr, n = 10) {
   
   if(nrow(distr) <= n) return(distr)
   
-  print("simplifier_top_n")
+  #print("simplifier_top_n")
   
   distr <- rbind(c(distr[1, 1, drop=F], 0), distr) #pour créer une masse à la première valeur
   
@@ -124,7 +124,7 @@ smooth_distr <- function(distr, init_distr, bandwidth) {
 
 #kernel smoothing
 distr_unsimplifier_top_n <- function(distr, init_distr) {
-  print("unsimplifier")
+  #print("unsimplifier")
   bandwidth <- optimise(function(bandwidth) {
     kernel <- smooth_distr(distr, init_distr, bandwidth)
     wassertein(init_distr, kernel)

@@ -76,6 +76,10 @@ p_win_game_of <- function(p, g = 7) {
   sapply(p, function(p_i) sum(dnbinom(0:(g-1), g, p_i)))
 }
 
+p_win_game_of_not_vec <- function(p, g = 7) {
+  sum(dnbinom(0:(g-1), g, p))
+}
+
 p_win_exact <- function(p, scoreA, scoreB) {
   dbinom(scoreA, scoreA + scoreB, p)
 }
@@ -175,26 +179,26 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
                    "p_s1_s2" = distr_S1_S2[, "p1"] * distr_S1_S2[, "p2"]
   )
   
-  Likelihood_fun <- function(p_win_1_pt, p_theta) {
-    p_theta * prod(
-      mapply(
-        function(w, g, d, scoreA, scoreB) {
-          if(include_exact_points | any(name %in% players_very_low_exposure)) {
-            p1 <- p_win_exact(p_win_1_pt, scoreA, scoreB)
-            p2 <- p_win_exact(p_win_1_pt, scoreB, scoreA)
-            (p1 * w + p2 * (1 - w))^((0.5^(2 / 365))^as.numeric(Sys.Date() - d))
-          } else {
-            p <- p_win_game_of(p_win_1_pt, g)
-            (p * w + (1 - p) * (1 - w))^((0.5^(2 / 365))^as.numeric(Sys.Date() - d))
-          }
-        },
-        win, game_len, date, scoreA, scoreB
-      )
-    )
+  Likelihood_fun1 <- function(p_win_1_pt) {
+    p1 <- p_win_exact(p_win_1_pt, scoreA, scoreB)
+    p2 <- p_win_exact(p_win_1_pt, scoreB, scoreA)
+    
+    prod((p1 * win + p2 * (1 - win))^((0.5^(2 / 365))^as.numeric(Sys.Date() - date)))
+  }
+  
+  Likelihood_fun2 <- function(p_win_1_pt) {
+    p <- sapply(game_len, p_win_game_of_not_vec, p=p_win_1_pt)
+    
+    prod((p * win + (1 - p) * (1 - win))^((0.5^(2 / 365))^as.numeric(Sys.Date() - date)))
   }
   
   #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
-  Likelihood <- mapply(Likelihood_fun, distr_P[, "P_1_wins_pt"], distr_P[, "p_s1_s2"])
+  if(include_exact_points | any(name %in% players_very_low_exposure)) {
+    Likelihood <- sapply(distr_P[, "P_1_wins_pt"], Likelihood_fun1) * distr_P[, "p_s1_s2"]
+  } else {
+    Likelihood <- sapply(distr_P[, "P_1_wins_pt"], Likelihood_fun2) * distr_P[, "p_s1_s2"]
+  }
+  
   Likelihood <- Likelihood / sum(Likelihood)
   
   posteriori <- cbind(
