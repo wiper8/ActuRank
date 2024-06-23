@@ -8,13 +8,18 @@ recommend_next_game <- function(players, names_present = NULL) {
   combins <- combn(noms, 2)
   
   info_gained <- apply(combins, 2, function(pair) {
+    
+    ranks <- sapply(players[pair], function(distr) calculate_skill(distr, players))
+    ranks <- sort(ranks, decreasing = T)
+    
     new_dists <- update_scores(
       players[pair],
-      #fake 2 games, one won, other lost, to see how much it would change distributions
+      # fake game, one won, to see how much it would change distributions if the current 
+      # best wins it
       scores=data.frame(
         date=as.character(Sys.Date()),
         "joueur_A1"=NA, "joueur_A2"=pair[1], "joueur_B1"=pair[2], "joueur_B2"=NA,
-        win=c(1, 0), score_A=c(5, 3), score_B=c(3, 5), game_len=5
+        win=1, score_A=5, score_B=3, game_len=5
       )
     )
     
