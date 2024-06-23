@@ -3,6 +3,7 @@ include_exact_points <- F
 source("src/import.R")
 source("src/update_scores.R")
 source("src/plots.R")
+source("src/recommend.R")
 
 scores_stats(scores, players)
 
@@ -25,6 +26,8 @@ show_current_ranking(players)
 show_detailed_skill(players)
 
 show_skill_level(players)
+
+recommend_next_game(players, names_present = NULL)
 
 show_current_probs(players)
 
