@@ -97,10 +97,13 @@ show_current_ranking <- function(players) {
     contraintes[(i - 1)*2 + 2, clust == i] <- -1
   }
   
+  #weighter un peu par la crédibilité
+  weights <- sapply(players[names(ranks)], compute_credibility)
+  
   to_optim <- function(Forces) {
     estim <- 1/(1+10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
-    
-    mean((estim - probs[, "prob_win_11"])^2)
+    print((estim - probs[, "prob_win_11"])[1])
+    mean(weights * (estim - probs[, "prob_win_11"])^2)
   }
   
   #min 0
