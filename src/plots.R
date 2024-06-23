@@ -1,7 +1,7 @@
 library(ggplot2)
 
 show_skill_level <- function(players) {
-  ranks <- sapply(players, calculate_skill)
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ranks <- ranks[order(ranks, decreasing = TRUE)]
   
   x <- 0:100
@@ -20,14 +20,40 @@ show_skill_level <- function(players) {
   ranks
 }
 
+complement_credibilite <- function(players) {
+  distr <- do.call(rbind, players)
+  distr <- rbind(c(distr[1, 1], p=0), distr)
+  x <- distr[, "mu"]
+  y <- distr[, "p"]
+  ordre <- order(x)
+  y <- y[ordre]
+  y <- y/sum(y)
+  x <- x[ordre]
+  step <- 5
+  res <- cbind(mu=seq(1, 100, step), p=sapply(seq(1, 100, step), function(x_seuil) sum(y[x <= x_seuil & x > (x_seuil - step)])))
+  res <- res[res[, 2] > 0, ]
+  if(abs(sum(res[, "p"])-1) > 0.02) stop("bug de somme de prob trop loin de 1")
+  res[, "p"] <- res[, "p"] / sum(res[, "p"])
+  res
+}
+
+credibilise <- function(distr, players, seuil = 0.6) {
+  z <- min(1, sqrt(compute_credibility(distr) / seuil))
+  complement <- complement_credibilite(players)
+  rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
+}
+
 show_current_probs <- function(players) {
-  ranks <- sapply(players, calculate_skill)
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
   ranks <- ranks[ordre]
   pairs <- t(combn(1:length(ranks), 2))
   
   prob <- mapply(function(distr_S1, distr_S2) {
+    
+    distr_S1 <- credibilise(distr_S1, players)
+    distr_S2 <- credibilise(distr_S2, players)
     
     distr_S1_S2 <- distr_F1_F2_1vs1(distr_S1, distr_S2)
     
@@ -49,17 +75,30 @@ show_current_probs <- function(players) {
 show_current_ranking <- function(players) {
   probs <- show_current_probs(players)
   
-  ranks <- sapply(players, calculate_skill)
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
   ranks <- ranks[ordre]
   pairs <- t(combn(1:length(ranks), 2))
   
+  # Trouver les composantes fortement connexes d'un graphe
+  pairings <- players_pairs(scores)
+  
+  pairings <- pairings[sapply(pairings, function(x) all(x %in% names(players)))]
+  
+  edges <- matrix(unlist(pairings), nrow=2)
+  g <- graph(edges, directed = FALSE)
+  clust <- components(g)$membership
+  clust <- clust[names(players)]
+  
+  contraintes <- matrix(0, nrow=max(clust)*2, ncol=length(players))
+  for(i in 1:max(clust)) {
+    contraintes[(i - 1)*2 + 1, clust == i] <- 1
+    contraintes[(i - 1)*2 + 2, clust == i] <- -1
+  }
   
   to_optim <- function(Forces) {
-    
     estim <- 1/(1+10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
-    #estim <- Forces[pairs[, 1]] / (Forces[pairs[, 1]] + Forces[pairs[, 2]])
     
     mean((estim - probs[, "prob_win_11"])^2)
   }
@@ -72,8 +111,9 @@ show_current_ranking <- function(players) {
   #moyenne 50 et min 0 et max 100
   #pourrait donner des bugs si le monde est très dispersé
   res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
-              ui = rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players))),
-              ci = c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players)))
+              ui = rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players)), contraintes),
+              ci = c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players), sapply(1:max(clust), function(i) c(49.5, -50.5) * sum(clust == i)))
+  )
 
   
   #scores entre 1 et 100
@@ -104,13 +144,13 @@ show_current_ranking <- function(players) {
       theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
   )
   
-  round(res$par, 1)
+  round(sort(res$par, decreasing = T), 1)
 }
 
 
 show_detailed_skill <- function(players) {
   
-  ranks <- sapply(players, calculate_skill)
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ranks <- ranks[order(ranks, decreasing = TRUE)]
   print(ranks)
   
