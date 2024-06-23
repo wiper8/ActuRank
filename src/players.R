@@ -33,7 +33,7 @@ simplifier_domain <- function(distr, dim_len_mu_min = 20) {
   distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000, ]
 }
 
-drift <- function(distr, a = 0.15) {
+drift <- function(distr, a = 0.05) {
   #distr * (1-a)^k + priori * (1 - (1-a)^k)
   #\left(1-a\right)^{x}\cdot30\ +\ a\cdot10\cdot\frac{\left(1-\left(1-a\right)^{x}\right)}{a}
   priori <- init_distr()
@@ -91,7 +91,7 @@ distr_simplifier_top_n <- function(distr, n = 10) {
 
 
 distr_interpolate <- function(distr) {
-  print("interpolation")
+  #print("interpolation")
   x <- distr[, "mu"]
   y <- distr[, "p"]
   new_x <- (x[-1] + head(x, -1))/2
@@ -105,27 +105,33 @@ distr_interpolate <- function(distr) {
   cbind(mu=x, p=y)
 }
 
+inverse_cdf <- function(distr) {
+  p <- seq(0, 1, 0.001)
+  distr <- rbind(c(distr[1, 1] - .Machine$double.eps, p=0), distr)
+  distr[, "p"] <- cumsum(distr[, "p"])
+  sapply(p, function(p) tail(distr[distr[, "p"] <= p, "mu"], 1))
+}
+
+wassertein <- function(distrA, distrB, q = 1) {
+  mean((abs(inverse_cdf(distrA) - inverse_cdf(distrB)))^q)^(1 / q)
+}
+
+smooth_distr <- function(distr, init_distr, bandwidth) {
+  y <- sapply(init_distr[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], bandwidth)))
+  y <- y/sum(y)
+  cbind(mu=init_distr[, "mu"], p=y)
+}
+
 #kernel smoothing
-#TODO améliorer en enlever le cap de factors et ajustant le bandwidth du kernel
-distr_unsimplifier_top_n <- function(distr, init_distr, cap_factor = Inf) {
-  #distr <- distr_interpolate(distr_interpolate(distr))
-  y <- sapply(init_distr[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
-  y <- y/sum(y)
+distr_unsimplifier_top_n <- function(distr, init_distr) {
+  print("unsimplifier")
+  bandwidth <- optimise(function(bandwidth) {
+    kernel <- smooth_distr(distr, init_distr, bandwidth)
+    wassertein(init_distr, kernel)
+    
+  }, c(0, 100), tol=0.1)$minimum
   
-  factors <- y / init_distr[, "p"]
-  #si min est de 0.1 et que j'en ai un autre de 1.2.
-  #1.2-1 = 0.2
-  factors_change_symmetrical <- ifelse(factors >= 1, factors-1, 1-1/factors)
-  factors_change_symmetrical <- pmin(5, abs(factors_change_symmetrical)) * sign(factors_change_symmetrical)
-  factors_change_symmetrical <- factors_change_symmetrical * cap_factor / max(abs(factors_change_symmetrical))
-  factors <- ifelse(factors_change_symmetrical >= 0, factors_change_symmetrical + 1, 1/(1-factors_change_symmetrical))
-  y <- init_distr[, "p"] * factors
-  y <- y/sum(y)
-  
-  #ggplot()+
-  #  geom_line(aes(x=0:100, y = sapply(0:100, function(x) sum(dnorm(x, distr[, "mu"], mean(diff(distr[, "mu"])))))))
-  
-  matrix(c(init_distr[, "mu"], y), ncol=2, dimnames = list(NULL, dimnames(distr)[[2]]))
+  smooth_distr(distr, init_distr, bandwidth)
 }
 
 distr_simplifier_1vs1 <- function(distr1, distr2) {
@@ -135,4 +141,11 @@ distr_simplifier_1vs1 <- function(distr1, distr2) {
 add_player <- function(name, players) {
   players[[name]] <- init_distr()
   players
+}
+
+
+compute_credibility <- function(distr, k = 0.1) {
+  #e <- sum(distr[, "mu"] * distr[, "p"])
+  v <- (sum(distr[, "mu"]^2 * distr[, "p"]) - sum((distr[, "mu"] * distr[, "p"]))^2)
+  2 * pnorm(k * 50 / sqrt(v)) - 1
 }
