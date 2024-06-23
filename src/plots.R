@@ -174,7 +174,6 @@ show_ranking_history <- function(scores) {
   all_dates <- as.Date(all_dates)
   all_dates <- sort(all_dates)
   
-  
   graph_data <- data.frame(
     date = rep(all_dates, each = length(name)),
     player = rep(name, length(all_dates)),
@@ -182,6 +181,8 @@ show_ranking_history <- function(scores) {
   )
   
   for(d in as.character(all_dates)) {
+    print(d)
+    
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
