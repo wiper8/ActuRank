@@ -52,19 +52,29 @@ for(d in as.character(dates)) {
   print(d)
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
-  if(include_exact_points) {
-    scores <- add_scores(
-      do.call(rbind, apply(subdata[, 1:8], 1, scores_per_pt_converter)),
-      scores,
-      date = d
-    )
-  } else {
+  #if(include_exact_points) {
+  #  scores <- add_scores(
+  #    do.call(rbind, apply(subdata[, 1:8], 1, scores_per_pt_converter)),
+  #    scores,
+  #    date = d
+  #  )
+  #} else {
     scores <- add_scores(
       subdata[, 1:8],
       scores,
       date = d
     )
-  }
+  #}
   
 }
+
+name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+name <- name[!is.na(name)]
+
+players_very_low_exposure <- sapply(name, function(n) {
+  sum(as.numeric(scores[apply(scores, 1, function(score) {
+    n %in% score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]
+  }), "game_len"]))
+})
+players_very_low_exposure <- names(players_very_low_exposure)[players_very_low_exposure < 100]
 
