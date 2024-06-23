@@ -77,8 +77,9 @@ p_win_game_of <- function(p, g = 7) {
 
 
 distr_P_1vs1 <- function(distr_F1_F2) {
-  cbind(distr_F1_F2, "P"=
-          distr_F1_F2[, "F1"] / (distr_F1_F2[, "F1"] + distr_F1_F2[, "F2"])
+  cbind(
+    distr_F1_F2,
+    "P" = distr_F1_F2[, "F1"] / (distr_F1_F2[, "F1"] + distr_F1_F2[, "F2"])
   )
 }
 
@@ -108,7 +109,7 @@ prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
   M[1:nrow(MA), -1:-nrow(MA)] <- MA
   M[-1:-nrow(MA), 1:nrow(MA)] <- MB
   
-  for(i in 1:5) {
+  for(i in 1:6) {
     M <- M %*% M
   }
   
@@ -171,8 +172,8 @@ posteriori_1vs1 <- function(distr_S1, distr_S2, game_len, win, date) {
   
   distr_P <- cbind(distr_P, "P_win_game" = p_win_game_of(distr_P[, "P_1_wins_pt"], game_len))
   
-  #weighter les games selon le nombre de jours passé avec (0.5^(1/121.67))^-x
-  Likelihood <- (distr_P[, "P_win_game"] * win + (1-distr_P[, "P_win_game"]) * (1-win))^((0.5^(2/365))^as.numeric(date - Sys.Date())) * distr_P[, "p_s1_s2"]
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  Likelihood <- (distr_P[, "P_win_game"] * win + (1-distr_P[, "P_win_game"]) * (1-win))^(1^as.numeric(Sys.Date() - date)) * distr_P[, "p_s1_s2"]
   Likelihood <- Likelihood/sum(Likelihood)
   
   posteriori <- cbind(
@@ -211,8 +212,8 @@ posteriori_2vs2 <- function(distr_SA1, distr_SA2,
   
   distr_P <- cbind(distr_P, "P_win_game" = p_win_game_of(distr_P[, "P_A_wins_pt"], game_len))
   
-  #weighter les games selon le nombre de jours passé avec (0.5^(1/121.67))^-x
-  Likelihood <- (distr_P[, "P_win_game"] * win + (1-distr_P[, "P_win_game"]) * (1-win))^((0.5^(2/365))^as.numeric(date - Sys.Date())) * distr_P[, "p_sa1_sa2_sb1_sb2"]
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  Likelihood <- (distr_P[, "P_win_game"] * win + (1-distr_P[, "P_win_game"]) * (1-win))^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_sa1_sa2_sb1_sb2"]
   Likelihood <- Likelihood/sum(Likelihood)
   Likelihood <- cbind(Likelihood, distr_P)
   
@@ -299,13 +300,11 @@ update_scores <- function(players, scores) {
   for(i in 1:nrow(scores)) {
     print(paste0(i, ifelse(is.na(scores[i, "joueur_A1"]), " 1vs1", " 2vs2")))
     players <- posteriori_of_game_simplified(players, scores[i, ])
-    #plot(players$Éti)
-    #Sys.sleep(1.5)
+    
     if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players <- lapply(players, simplifier_domain)
-    #plot(players$Éti, col="red")
+    #players <- lapply(players, simplifier_domain)
+    
     if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    #Sys.sleep(1.5)
     
   }
   players
