@@ -20,17 +20,17 @@ round_up_domain <- function(distr) {
 }
 
 distr_simplifier <- function(distr) {
-  #if(sum(!(distr[, "p"] >= (1 / nrow(distr) / 12) | cumsum(distr[, "p"]) >= 0.005 | cumsum(distr[, "p"]) <= 0.995)) > 0) print("distribution simplifiée")
+  if(sum(!(distr[, "p"] >= (1 / nrow(distr) / 12) | cumsum(distr[, "p"]) >= 0.005 | cumsum(distr[, "p"]) <= 0.995)) > 0) print("distribution simplifiée")
   distr[, "p"] >= (1 / nrow(distr) / 12) | cumsum(distr[, "p"]) >= 0.005 | cumsum(distr[, "p"]) <= 0.995
 }
 
 simplifier_domain <- function(distr, dim_len_mu_min = 20) {
-  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= 1/1000000)
+  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000)
   if(n < dim_len_mu_min | sum(head(sort(distr[, "p"], decreasing = T), 15)) > 0.85) {
     distr <- distr_interpolate(distr)
   }
-  #if(sum(!(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= 1/1000000)) > 0) print("domain simplified")
-  distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= 1/1000000, ]
+  #if(sum(!(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000)) > 0) print("domain simplified")
+  distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000, ]
 }
 
 drift <- function(distr, a = 0.15) {
@@ -47,7 +47,11 @@ drift <- function(distr, a = 0.15) {
 }
 
 distr_simplifier_top_n <- function(distr, n = 10) {
-  #print("simplifier_top_n")
+  
+  if(nrow(distr) <= n) return(distr)
+  
+  print("simplifier_top_n")
+  
   distr <- rbind(c(distr[1, 1, drop=F], 0), distr) #pour créer une masse à la première valeur
   
   repart <- cumsum(distr[, "p"])
@@ -102,6 +106,7 @@ distr_interpolate <- function(distr) {
 }
 
 #kernel smoothing
+#TODO améliorer en enlever le cap de factors et ajustant le bandwidth du kernel
 distr_unsimplifier_top_n <- function(distr, init_distr, cap_factor = Inf) {
   #distr <- distr_interpolate(distr_interpolate(distr))
   y <- sapply(init_distr[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
