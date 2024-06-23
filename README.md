@@ -2,3 +2,4 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 
 # TODO
 - ajouter une matrice qui montre le nb de parties jouées entre tout le monde
+- weights dans Likelihood : est-ce vrm utile vu que je divise déjà par jour, ca changerait le classement rétroactivement, non?
