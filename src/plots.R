@@ -102,7 +102,6 @@ show_current_ranking <- function(players) {
   
   to_optim <- function(Forces) {
     estim <- 1/(1+10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
-    print((estim - probs[, "prob_win_11"])[1])
     mean(weights * (estim - probs[, "prob_win_11"])^2)
   }
   
