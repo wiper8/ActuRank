@@ -92,14 +92,17 @@ show_current_ranking <- function(players) {
   clust <- clust[names(players)]
   
   contraintes <- matrix(0, nrow=max(clust)*2, ncol=length(players))
+  init_theta <- rep(50, length(players))
   for(i in 1:max(clust)) {
     contraintes[(i - 1)*2 + 1, clust == i] <- 1
     contraintes[(i - 1)*2 + 2, clust == i] <- -1
+    
+    init_theta[clust == i] <- qnorm(seq(0.1, 0.9, length.out = sum(clust == i)), 50, 15)
   }
   
   #weighter un peu par la crédibilité
   weights <- sapply(players[names(ranks)], compute_credibility)
-  
+  weights <- mapply(sum, weights[pairs[, 1]], weights[pairs[, 2]])
   to_optim <- function(Forces) {
     estim <- 1/(1+10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
     mean(weights * (estim - probs[, "prob_win_11"])^2)
@@ -112,7 +115,7 @@ show_current_ranking <- function(players) {
   
   #moyenne 50 et min 0 et max 100
   #pourrait donner des bugs si le monde est très dispersé
-  res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
+  res <- constrOptim(init_theta, to_optim, grad = NULL,
               ui = rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players)), contraintes),
               ci = c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players), sapply(1:max(clust), function(i) c(49.5, -50.5) * sum(clust == i)))
   )
