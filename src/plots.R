@@ -1,4 +1,5 @@
 library(ggplot2)
+library(igraph)
 
 show_skill_level <- function(players) {
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
@@ -214,7 +215,7 @@ show_ranking_history <- function(scores) {
   })
   
   drift_dates <- unique(unlist(drift_per_player))
-  all_dates <- c(game_dates, drift_dates)
+  all_dates <- c(game_dates, as.Date(drift_dates))
   all_dates <- unique(all_dates)
   all_dates <- as.Date(all_dates)
   all_dates <- sort(all_dates)

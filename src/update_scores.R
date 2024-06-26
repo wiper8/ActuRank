@@ -421,12 +421,16 @@ posteriori_of_game_simplified <- function(players, score) {
 
 players_pairs <- function(scores) {
   scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
+  tmp <- apply(
+    scores[, 3:4], 1, function(x) {
+      names(x) <- NULL
+      sort(x)
+    }
+  )
   unique(
-    apply(
-      scores[, 3:4], 1, function(x) {
-        names(x) <- NULL
-        sort(x)
-      }, simplify = FALSE
+    lapply(
+      1:ncol(tmp),
+      function(i) tmp[, i]
     )
   )
 }
