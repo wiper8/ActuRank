@@ -8,3 +8,4 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - maybe calibrer la priori selon la distribution empirique du monde après plusieurs mois. Possiblement mettre une masse à gauche pour résoudre le problème de drift (incitatif aux faibles à ne plus jouer pour monter)
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
+- rescale the skill parameter between 0 and 1
