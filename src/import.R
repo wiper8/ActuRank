@@ -31,7 +31,11 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "JT", "Jas",
                             "APA2", "AlexP",
                             "JCH", "Jacob",
-                            "AUJ", "Audrey"), ncol=2, byrow=T)
+                            "AUJ", "Audrey",
+                            "CV", "Carl",
+                            "M", "Mariève",
+                            "LL", "Louis",
+                            "JPL", "JPL"), ncol=2, byrow=T)
 
 for(i in 1:4)
   data[, i] <- mapping_joueurs[match(data[, i], mapping_joueurs), 2]
