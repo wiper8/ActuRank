@@ -180,7 +180,7 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   )
   
   Likelihood_fun1 <- function(p_win_1_pt) {
-    p <- p_win_exact(1 - p_win_1_pt, scoreA, scoreB) * (1 - win) + p_win_exact(p_win_1_pt, scoreB, scoreA) * win)
+    p <- p_win_exact(1 - p_win_1_pt, scoreA, scoreB) * (1 - win) + p_win_exact(p_win_1_pt, scoreB, scoreA) * win
     
     prod(p)#^((0.5^(2 / 365))^as.numeric(Sys.Date() - date)))
   }
