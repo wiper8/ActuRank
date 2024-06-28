@@ -324,8 +324,8 @@ posteriori_of_game_simplified_vectorized <- function(players, scores) {
     game_len = as.numeric(scores[, "game_len"]),
     win = as.numeric(scores[, "win"]) * (scores[, "joueur_A2"] == A) + (1 - as.numeric(scores[, "win"])) * (scores[, "joueur_A2"] == B),
     date = as.Date(scores[, "date"]),
-    scoreA = as.numeric(scores[, "score_A"]),
-    scoreB = as.numeric(scores[, "score_B"]),
+    scoreA = as.numeric(scores[, "score_A"]) * (scores[, "joueur_A2"] == A) + as.numeric(scores[, "score_B"]) * (scores[, "joueur_A2"] == B),
+    scoreB = as.numeric(scores[, "score_B"]) * (scores[, "joueur_A2"] == A) + as.numeric(scores[, "score_A"]) * (scores[, "joueur_A2"] == B),
     name = c(A, B)
   )
   posteriori_per_player <- post_marginal_per_player(posteriori)
