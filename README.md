@@ -7,3 +7,4 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - Ajouter une manière de pénaliser les gens vraiment pas crédible? Ou modifier le calcul de prob dans le ELO en tenant compte de la variance
 - maybe calibrer la priori selon la distribution empirique du monde après plusieurs mois. Possiblement mettre une masse à gauche pour résoudre le problème de drift (incitatif aux faibles à ne plus jouer pour monter)
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
+- faire une graphe avec des arêtes pour montré qui a joué contre qui.
