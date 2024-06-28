@@ -9,3 +9,4 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
 - rescale the skill parameter between 0 and 1
+- ajouter densité avec écart de 2 points ou non 

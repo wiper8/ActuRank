@@ -81,7 +81,7 @@ p_win_game_of_not_vec <- function(p, g = 7) {
 }
 
 p_win_exact <- function(p, scoreA, scoreB) {
-  dbinom(scoreA, scoreA + scoreB, p)
+  dnbinom(scoreA, scoreB, p)
 }
 
 distr_P_1vs1 <- function(distr_F1_F2) {
@@ -180,7 +180,7 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   )
   
   Likelihood_fun1 <- function(p_win_1_pt) {
-    p <- p_win_exact(p_win_1_pt, scoreA, scoreB)
+    p <- p_win_exact(1 - p_win_1_pt, scoreA, scoreB) * (1 - win) + p_win_exact(p_win_1_pt, scoreB, scoreA) * win)
     
     prod(p)#^((0.5^(2 / 365))^as.numeric(Sys.Date() - date)))
   }
@@ -224,12 +224,10 @@ posteriori_1vs1 <- function(distr_S1, distr_S2, game_len, win, date, scoreA, sco
   )
   
   if(include_exact_points | any(name %in% players_very_low_exposure)) {
-    distr_P <- cbind(distr_P,
-                     "P_win_game1" = p_win_exact(distr_P[, "P_1_wins_pt"], scoreA, scoreB),
-                     "P_win_game2" = p_win_exact(distr_P[, "P_1_wins_pt"], scoreB, scoreA))
+    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(1 - distr_P[, "P_A_wins_pt"], scoreA, scoreB) * (1 - win) + p_win_exact(distr_P[, "P_A_wins_pt"], scoreB, scoreA) * win)
     
     #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
-    Likelihood <- (distr_P[, "P_win_game1"] * win + distr_P[, "P_win_game2"] * (1-win))#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_s1_s2"]
+    Likelihood <- distr_P[, "P_win_game"]#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_s1_s2"]
   } else {
     distr_P <- cbind(distr_P, "P_win_game" = p_win_game_of(distr_P[, "P_1_wins_pt"], game_len))
     
@@ -274,12 +272,9 @@ posteriori_2vs2 <- function(distr_SA1, distr_SA2,
   )
   
   if(include_exact_points) {
-    distr_P <- cbind(distr_P,
-                     "P_win_game1" = p_win_exact(distr_P[, "P_A_wins_pt"], scoreA, scoreB),
-                     "P_win_game2" = p_win_exact(distr_P[, "P_A_wins_pt"], scoreB, scoreA)
-    )
+    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(1 - distr_P[, "P_A_wins_pt"], scoreA, scoreB) * (1 - win) + p_win_exact(distr_P[, "P_A_wins_pt"], scoreB, scoreA) * win)
     #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
-    Likelihood <- (distr_P[, "P_win_game1"] * win + distr_P[, "P_win_game2"] * (1-win))#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_sa1_sa2_sb1_sb2"]
+    Likelihood <- distr_P[, "P_win_game"]#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_sa1_sa2_sb1_sb2"]
   } else {
     distr_P <- cbind(distr_P, "P_win_game" = p_win_game_of(distr_P[, "P_A_wins_pt"], game_len))
     #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
