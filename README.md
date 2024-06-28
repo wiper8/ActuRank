@@ -10,3 +10,6 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
 - rescale the skill parameter between 0 and 1
 - ajouter densité avec écart de 2 points ou non 
+- réduire le hp de drift
+- pour l'initiatisation des theta dans l'optimisation, utiliser le résultat précédent en mémoire pour accélérer la convergence.
+- Possiblement faire un graphique à 2 axe =, coin haut droit est 100, coin bas gauche est 0, et il y aurait des cercles.
