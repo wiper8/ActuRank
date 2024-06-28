@@ -456,7 +456,7 @@ update_scores <- function(players, scores) {
   if(nrow(scores[!is.na(scores[, "joueur_A1"]), ]) > 0) {
     
     for(i in 1:nrow(scores[!is.na(scores[, "joueur_A1"]), ])) {
-      print(paste0(i, " 2vs2"))
+      # print(paste0(i, " 2vs2"))
       players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
       
       if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
