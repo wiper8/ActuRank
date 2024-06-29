@@ -251,9 +251,9 @@ show_ranking_history <- function(scores) {
   
   ranks <- NULL
   
-  for(d in as.character(all_dates[1:24])) {
+  for(d in as.character(all_dates)) {
     print(d)
-    hist(sapply(players, nrow))
+    
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
