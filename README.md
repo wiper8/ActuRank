@@ -13,3 +13,5 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - réduire le hp de drift
 - pour l'initiatisation des theta dans l'optimisation, utiliser le résultat précédent en mémoire pour accélérer la convergence.
 - Possiblement faire un graphique à 2 axe =, coin haut droit est 100, coin bas gauche est 0, et il y aurait des cercles.
+- Dans le graphique du ranking dans le temps, juste mettre des points quand les gens ont joué des parties, lignes si c'est juste du drift ou des ajustements par rapport aux autres.
+- Ajouter la crédibilité dans le graph de ranking actuel, pt juste avec la hauteur des barres.
