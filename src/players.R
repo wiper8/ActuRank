@@ -5,7 +5,7 @@
 
 players <- list()
 
-dim_len_mu <- 50
+dim_len_mu <- 30
 
 init_distr <- function() {
   mu1 <- qbeta(seq(0, 1, length.out = dim_len_mu), 2, 2) * 99 + 1
