@@ -116,9 +116,9 @@ distr_interpolate <- function(distr) {
 }
 
 check_distr <- function(distr) {
-  if(nrow(distr) <= 3) stop("domaine très petit")
-  if(distr[1, "p"] >= 1/nrow(distr) / 2 & distr[1, "mu"] >= 10) stop("queue gauche plus élevée")
-  if(distr[nrow(distr), "p"] >= 1/nrow(distr) / 2 & distr[nrow(distr), "mu"] <= 90) stop("queue droite plus élevée")
+  if(nrow(distr) <= 3) warning("domaine très petit")
+  if(distr[1, "p"] >= 1/nrow(distr) / 2 & distr[1, "mu"] >= 10) warning("queue gauche plus élevée")
+  if(distr[nrow(distr), "p"] >= 1/nrow(distr) / 2 & distr[nrow(distr), "mu"] <= 90) warning("queue droite plus élevée")
 }
 
 inverse_cdf <- function(distr) {
