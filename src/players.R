@@ -15,7 +15,7 @@ init_distr <- function() {
 
 round_up_domain <- function(distr) {
   distr <- setDT(as.data.frame(distr))
-  distr[, mu := round(mu, 3)]
+  distr[, mu := round(mu, 1)]
   as.matrix(distr[, .(p = sum(p)), by = mu][order(mu)])
 }
 
@@ -25,12 +25,18 @@ distr_simplifier <- function(distr) {
 }
 
 simplifier_domain <- function(distr, dim_len_mu_min = 20) {
-  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000)
+  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50))
+  
   if(n < dim_len_mu_min | sum(head(sort(distr[, "p"], decreasing = T), 15)) > 0.85) {
     distr <- distr_interpolate(distr)
   }
-  #if(sum(!(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000)) > 0) print("domain simplified")
-  distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000, ]
+  
+  #remove too low points
+  distr <- distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50), , drop = FALSE]
+  
+  #smooth
+  smooth_distr(distr, step = 2)
+  
 }
 
 drift <- function(distr, a = 0.03) {
@@ -116,7 +122,7 @@ wassertein <- function(distrA, distrB, q = 1) {
   mean((abs(inverse_cdf(distrA) - inverse_cdf(distrB)))^q)^(1 / q)
 }
 
-smooth_distr <- function(distr, init_distr, bandwidth) {
+smooth_kernel_distr <- function(distr, init_distr, bandwidth) {
   y <- sapply(init_distr[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], bandwidth)))
   y <- y/sum(y)
   cbind(mu=init_distr[, "mu"], p=y)
@@ -126,12 +132,12 @@ smooth_distr <- function(distr, init_distr, bandwidth) {
 distr_unsimplifier_top_n <- function(distr, init_distr) {
   #print("unsimplifier")
   bandwidth <- optimise(function(bandwidth) {
-    kernel <- smooth_distr(distr, init_distr, bandwidth)
+    kernel <- smooth_kernel_distr(distr, init_distr, bandwidth)
     wassertein(init_distr, kernel)
     
   }, c(0, 100), tol=0.1)$minimum
   
-  smooth_distr(distr, init_distr, bandwidth)
+  smooth_kernel_distr(distr, init_distr, bandwidth)
 }
 
 distr_simplifier_1vs1 <- function(distr1, distr2) {
