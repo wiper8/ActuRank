@@ -26,7 +26,7 @@ smooth_distr <- function(distr, step = 5) {
   res <- cbind(mu = seq(0 + step / 2, 100 - step / 2, step), 
                p = sapply(seq(0 + step / 2, 100 - step / 2, step),
                           function(x_seuil) sum(distr[, "p"][distr[, "mu"] <= (x_seuil + step / 2) & distr[, "mu"] > (x_seuil - step / 2)])))
-  res <- res[res[, 2] > 0, ]
+  res <- res[res[, 2] > 0, , drop = FALSE]
   if(abs(sum(res[, "p"]) - 1) > 0.02) stop("bug de somme de prob trop loin de 1")
   res[, "p"] <- res[, "p"] / sum(res[, "p"])
   res
@@ -222,6 +222,15 @@ show_detailed_skill <- function(players) {
   
 }
 
+show_distr <- function(distr) {
+  ggplot()+
+    geom_point(aes(x=mu, y=p), data=as.data.frame(distr))+
+    xlab("Skill")+ylab("Likelihood")+
+    theme_bw()+
+    xlim(0, 100)
+}
+
+
 show_ranking_history <- function(scores) {
   
   name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
@@ -254,6 +263,8 @@ show_ranking_history <- function(scores) {
   for(d in as.character(all_dates)) {
     print(d)
     
+    print(show_distr(players$Will))
+    
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
@@ -265,6 +276,7 @@ show_ranking_history <- function(scores) {
     
     ranks <- show_current_ranking(players = players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
+    sapply(players, check_distr)
   }
   
   list(players, graph_data)

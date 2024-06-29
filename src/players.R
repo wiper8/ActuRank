@@ -19,24 +19,26 @@ round_up_domain <- function(distr) {
   as.matrix(distr[, .(p = sum(p)), by = mu][order(mu)])
 }
 
-distr_simplifier <- function(distr) {
-  if(sum(!(distr[, "p"] >= (1 / nrow(distr) / 12) | cumsum(distr[, "p"]) >= 0.005 | cumsum(distr[, "p"]) <= 0.995)) > 0) print("distribution simplifiée")
-  distr[, "p"] >= (1 / nrow(distr) / 12) | cumsum(distr[, "p"]) >= 0.005 | cumsum(distr[, "p"]) <= 0.995
+tails_simplifier <- function(distr) {
+  if(sum(!(distr[, "p"] >= (1 / nrow(distr) / 20) | cumsum(distr[, "p"]) >= 0.001 | cumsum(distr[, "p"]) <= 0.999)) > 0) print("distribution simplifiée")
+  distr[, "p"] >= (1 / nrow(distr) / 20) | cumsum(distr[, "p"]) >= 0.001 | cumsum(distr[, "p"]) <= 0.999
 }
 
-simplifier_domain <- function(distr, dim_len_mu_min = 20) {
-  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50))
+simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
+  n <- sum(distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "p"]) / 50))
   
   if(n < dim_len_mu_min | sum(head(sort(distr[, "p"], decreasing = T), 15)) > 0.85) {
     distr <- distr_interpolate(distr)
   }
   
-  #remove too low points
-  distr <- distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50), , drop = FALSE]
-  
   #smooth
-  smooth_distr(distr, step = 2)
+  res <- smooth_distr(distr, step = step)
   
+  tmp <- tails_simplifier(res)
+  
+  probs_ignorees <- sum(distr[!tmp, "p"])
+  if(probs_ignorees > 0.005) return(res)
+  res[tmp, , drop = FALSE]
 }
 
 drift <- function(distr, a = 0.03) {
@@ -98,6 +100,7 @@ distr_simplifier_top_n <- function(distr, n = 10) {
 
 distr_interpolate <- function(distr) {
   #print("interpolation")
+  
   x <- distr[, "mu"]
   y <- distr[, "p"]
   new_x <- (x[-1] + head(x, -1))/2
@@ -108,7 +111,14 @@ distr_interpolate <- function(distr) {
   y <- y[ordre]
   x <- x[ordre]
   y[c(-1, -length(y))] <- y[c(-1, -length(y))]/sum(y[c(-1, -length(y))]) * (1 - sum(y[c(1, length(y))]))
-  cbind(mu=x, p=y)
+  res <- cbind(mu=x, p=y)
+  smooth_distr(res, step = 1)
+}
+
+check_distr <- function(distr) {
+  if(nrow(distr) <= 3) stop("domaine très petit")
+  if(distr[1, "p"] >= 1/nrow(distr) / 2 & distr[1, "mu"] >= 10) stop("queue gauche plus élevée")
+  if(distr[nrow(distr), "p"] >= 1/nrow(distr) / 2 & distr[nrow(distr), "mu"] <= 90) stop("queue droite plus élevée")
 }
 
 inverse_cdf <- function(distr) {
@@ -140,8 +150,8 @@ distr_unsimplifier_top_n <- function(distr, init_distr) {
   smooth_kernel_distr(distr, init_distr, bandwidth)
 }
 
-distr_simplifier_1vs1 <- function(distr1, distr2) {
-  list(keep1 = distr_simplifier(distr1), keep2 = distr_simplifier(distr2))
+tails_simplifier_1vs1 <- function(distr1, distr2) {
+  list(keep1 = tails_simplifier(distr1), keep2 = tails_simplifier(distr2))
 }
 
 add_player <- function(name, players) {

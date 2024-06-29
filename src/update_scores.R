@@ -340,22 +340,10 @@ posteriori_of_game_simplified_vectorized <- function(players, scores) {
   players[[A]] <- round_up_domain(players[[A]])
   players[[B]] <- round_up_domain(players[[B]])
   
-  tmp <- distr_simplifier_1vs1(distr1 = players[[A]],
-                               distr2 = players[[B]])
-  
-  probs_ignorees1 <- sum(players[[A]][!tmp[["keep1"]], "p"])
-  probs_ignorees2 <- sum(players[[B]][!tmp[["keep2"]], "p"])
-  
-  if(probs_ignorees1 > 0.01 | probs_ignorees2 > 0.01) {
-    probs_ignorees1 <- 0
-    probs_ignorees2 <- 0
-    tmp <- list(keep1 = rep(T, length(tmp[["keep1"]])),
-                keep2 = rep(T, length(tmp[["keep2"]])))
-  }
   
   posteriori <- posteriori_1vs1_vectorized(
-    distr_S1 = players[[A]][tmp[["keep1"]], ],
-    distr_S2 = players[[B]][tmp[["keep2"]], ],
+    distr_S1 = players[[A]],
+    distr_S2 = players[[B]],
     game_len = as.numeric(scores[, "game_len"]),
     win = as.numeric(scores[, "win"]) * (scores[, "joueur_A2"] == A) + (1 - as.numeric(scores[, "win"])) * (scores[, "joueur_A2"] == B),
     date = as.Date(scores[, "date"]),
@@ -365,11 +353,8 @@ posteriori_of_game_simplified_vectorized <- function(players, scores) {
   )
   posteriori_per_player <- post_marginal_per_player(posteriori)
   
-  posteriori_per_player[[1]][, "p"] <- posteriori_per_player[[1]][, "p"] * (1-probs_ignorees1)
-  posteriori_per_player[[2]][, "p"] <- posteriori_per_player[[2]][, "p"] * (1-probs_ignorees2)
-  
-  players[[A]][tmp[["keep1"]], ] <- as.matrix(posteriori_per_player[[1]])
-  players[[B]][tmp[["keep2"]], ] <- as.matrix(posteriori_per_player[[2]])
+  players[[A]] <- as.matrix(posteriori_per_player[[1]])
+  players[[B]] <- as.matrix(posteriori_per_player[[2]])
   players
 }
 
@@ -379,7 +364,7 @@ posteriori_of_game_simplified <- function(players, score) {
     players[[score[, "joueur_A2"]]] <- round_up_domain(players[[score[, "joueur_A2"]]])
     players[[score[, "joueur_B1"]]] <- round_up_domain(players[[score[, "joueur_B1"]]])
     
-    tmp <- distr_simplifier_1vs1(distr1 = players[[score[, "joueur_A2"]]],
+    tmp <- tails_simplifier_1vs1(distr1 = players[[score[, "joueur_A2"]]],
                                  distr2 = players[[score[, "joueur_B1"]]])
     
     probs_ignorees1 <- sum(players[[score[, "joueur_A2"]]][!tmp[["keep1"]], "p"])
@@ -471,20 +456,18 @@ players_pairs <- function(scores) {
 
 update_scores <- function(players, scores) {
   
-  pairs <- players_pairs(scores)
+  pairs <- sample(players_pairs(scores)) #shuffler pcq l'ordre peut avoir un certain impact
   
   #1vs1
   for(pair in pairs) {
-    
     keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
     
     players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
     
     if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players <- lapply(players, simplifier_domain)
+    players <- mapply(simplifier_domain, players, step = ifelse(sapply(players, function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
     
     if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    
   }
   
   #2vs2
@@ -495,7 +478,7 @@ update_scores <- function(players, scores) {
       players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
       
       if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      players <- lapply(players, simplifier_domain)
+      players <- mapply(simplifier_domain, players, step = ifelse(sapply(players, function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
       
       if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
       
