@@ -222,6 +222,38 @@ show_detailed_skill <- function(players) {
   
 }
 
+show_IC_skill <- function(players) {
+  
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
+  ranks <- ranks[order(ranks, decreasing = TRUE)]
+  print(ranks)
+  
+  graph_data <- data.frame(
+    skill = ranks,
+    player = names(ranks)
+  )
+  
+  players_IC <- sapply(players, function(distr) {
+    res <- inverse_cdf(distr)[c(11, 991)] #1% and 99%
+    names(res) <- c("low", "up")
+    res
+  })
+  
+  graph_data2 <- data.frame(
+    t(players_IC),
+    player = colnames(players_IC),
+    credibl = sapply(players, compute_credibility)
+  )
+  
+  ggplot()+
+    #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
+    geom_errorbar(aes(xmin = low, xmax = up, y = credibl, col = player), data=graph_data2,
+                  linewidth = 1, alpha = 0.8)+
+    xlab("Skill")+ylab("Crédibilité")+
+    theme_bw()+
+    xlim(0, 100)
+}
+
 show_distr <- function(distr) {
   ggplot()+
     geom_point(aes(x=mu, y=p), data=as.data.frame(distr))+
@@ -260,10 +292,10 @@ show_ranking_history <- function(scores) {
   
   ranks <- NULL
   
-  for(d in as.character(all_dates)) {
+  for(d in as.character(all_dates[1:30])) {
     print(d)
     
-    print(show_distr(players$Will))
+    print(show_distr(players$Gab))
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
