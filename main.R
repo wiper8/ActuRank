@@ -38,7 +38,7 @@ recommend_next_game(players, names_present = NULL)
 
 show_current_probs(players)
 
-lapply(show_skill_level(players) / 100, transition_matrix)
+lapply(show_skill_level(players), transition_matrix)
 
 show_played_against_grid(players, scores)
 
