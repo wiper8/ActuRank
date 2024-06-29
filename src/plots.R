@@ -31,9 +31,12 @@ complement_credibilite <- function(players) {
   y <- y/sum(y)
   x <- x[ordre]
   step <- 5
-  res <- cbind(mu=seq(1, 100, step), p=sapply(seq(1, 100, step), function(x_seuil) sum(y[x <= x_seuil & x > (x_seuil - step)])))
+  
+  res <- cbind(mu = seq(0 + step / 2, 100 - step / 2, step), 
+               p = sapply(seq(0 + step / 2, 100 - step / 2, step),
+                          function(x_seuil) sum(y[x <= (x_seuil + step / 2) & x > (x_seuil - step / 2)])))
   res <- res[res[, 2] > 0, ]
-  if(abs(sum(res[, "p"])-1) > 0.02) stop("bug de somme de prob trop loin de 1")
+  if(abs(sum(res[, "p"]) - 1) > 0.02) stop("bug de somme de prob trop loin de 1")
   res[, "p"] <- res[, "p"] / sum(res[, "p"])
   res
 }
@@ -229,19 +232,20 @@ show_ranking_history <- function(scores) {
   
   ranks <- NULL
   
-  for(d in as.character(all_dates)) {
+  for(d in as.character(all_dates[1:44])) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
-      players[player_in_ranking[name %in% player_in_ranking]] <- lapply(players[player_in_ranking[name %in% player_in_ranking]], drift)
+      players[name[name %in% player_in_ranking]] <- lapply(players[name[name %in% player_in_ranking]], drift)
     }
     if(d %in% as.character(game_dates)) {
       players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
     }
     ranks <- show_current_ranking(players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
+    print(calculate_skill(players[["JPL"]], players))
   }
   
   list(players, graph_data)
