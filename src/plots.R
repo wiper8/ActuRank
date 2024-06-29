@@ -50,11 +50,9 @@ show_current_probs <- function(players) {
   players <- players[ordre]
   ranks <- ranks[ordre]
   pairs <- t(combn(1:length(ranks), 2))
+  players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
   
   prob <- mapply(function(distr_S1, distr_S2) {
-    
-    distr_S1 <- credibilise(distr_S1, players)
-    distr_S2 <- credibilise(distr_S2, players)
     
     distr_S1_S2 <- distr_F1_F2_1vs1(distr_S1, distr_S2)
     
@@ -65,15 +63,15 @@ show_current_probs <- function(players) {
     sum(mapply(function(MS1, MS2) prob_win_point_1vs1_knowing_skills(MS1, MS2),
                MS1, MS2) * distr_S1_S2[, "p1"] * distr_S1_S2[, "p2"])
   },
-  players[pairs[, 1]],
-  players[pairs[, 2]]
+  players_credibilise[pairs[, 1]],
+  players_credibilise[pairs[, 2]]
   )
   
   data.frame(A=names(ranks)[pairs[, 1]], B=names(ranks)[pairs[, 2]],
              prob = round(prob, 3), prob_win_11 = round(sapply(prob, function(p) p_win_game_of(p, 11)), 3))
 }
 
-show_current_ranking <- function(players) {
+show_current_ranking <- function(players, init_theta = NULL) {
   probs <- show_current_probs(players)
   
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
@@ -93,13 +91,19 @@ show_current_ranking <- function(players) {
   clust <- clust[names(players)]
   
   contraintes <- matrix(0, nrow=max(clust)*2, ncol=length(players))
-  init_theta <- rep(50, length(players))
+  
   for(i in 1:max(clust)) {
     contraintes[(i - 1)*2 + 1, clust == i] <- 1
     contraintes[(i - 1)*2 + 2, clust == i] <- -1
-    
-    init_theta[clust == i] <- qnorm(seq(0.1, 0.9, length.out = sum(clust == i)), 50, 15)
   }
+  
+  if (is.null(init_theta) | length(players) != length(init_theta)) {
+    init_theta <- rep(50, length(players))
+    for(i in 1:max(clust)) {
+      init_theta[clust == i] <- qnorm(seq(0.1, 0.9, length.out = sum(clust == i)), 50, 15)
+    }
+  }
+  
   
   #weighter un peu par la crédibilité
   weights <- sapply(players[names(ranks)], compute_credibility)
@@ -223,6 +227,8 @@ show_ranking_history <- function(scores) {
     score = NA
   )
   
+  ranks <- NULL
+  
   for(d in as.character(all_dates)) {
     print(d)
     
@@ -234,7 +240,7 @@ show_ranking_history <- function(scores) {
     if(d %in% as.character(game_dates)) {
       players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
     }
-    ranks <- show_current_ranking(players[player_in_ranking])
+    ranks <- show_current_ranking(players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
   }
   
