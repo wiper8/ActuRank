@@ -1,6 +1,7 @@
 source("src/players.R")
 source("src/scores.R")
 
+
 scores <- scores_init()
 
 players <- list()
@@ -10,6 +11,9 @@ colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "
 data <- data[, 1:9]
 data <- data[-1, ]
 data <- data[data[, "joueur_B1"] != "", ]
+data$score_A <- as.numeric(data$score_A)
+data$score_B <- as.numeric(data$score_B)
+data$win <- as.numeric(data$win)
 
 mapping_joueurs <- matrix(c("W", "Will",
                             "É", "Éti",
@@ -27,7 +31,12 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "JT", "Jas",
                             "APA2", "AlexP",
                             "JCH", "Jacob",
-                            "AUJ", "Audrey"), ncol=2, byrow=T)
+                            "AUJ", "Audrey",
+                            "CV", "Carl",
+                            "M", "Mariève",
+                            "LL", "Louis",
+                            "JPL", "JPL",
+                            "AR", "AlexRich"), ncol=2, byrow=T)
 
 for(i in 1:4)
   data[, i] <- mapping_joueurs[match(data[, i], mapping_joueurs), 2]
@@ -48,10 +57,29 @@ for(d in as.character(dates)) {
   print(d)
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
-  scores <- add_scores(
-    subdata[, c(1:5, 8)],
-    scores,
-    date = d
-  )
+  #if(include_exact_points) {
+  #  scores <- add_scores(
+  #    do.call(rbind, apply(subdata[, 1:8], 1, scores_per_pt_converter)),
+  #    scores,
+  #    date = d
+  #  )
+  #} else {
+    scores <- add_scores(
+      subdata[, 1:8],
+      scores,
+      date = d
+    )
+  #}
+  
 }
+
+name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+name <- name[!is.na(name)]
+
+players_very_low_exposure <- sapply(name, function(n) {
+  sum(as.numeric(scores[apply(scores, 1, function(score) {
+    n %in% score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]
+  }), "game_len"]))
+})
+players_very_low_exposure <- names(players_very_low_exposure)[players_very_low_exposure < 100]
 
