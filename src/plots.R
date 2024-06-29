@@ -21,6 +21,17 @@ show_skill_level <- function(players) {
   ranks
 }
 
+smooth_distr <- function(distr, step = 5) {
+  stopifnot(100 %% step == 0)
+  res <- cbind(mu = seq(0 + step / 2, 100 - step / 2, step), 
+               p = sapply(seq(0 + step / 2, 100 - step / 2, step),
+                          function(x_seuil) sum(distr[, "p"][distr[, "mu"] <= (x_seuil + step / 2) & distr[, "mu"] > (x_seuil - step / 2)])))
+  res <- res[res[, 2] > 0, ]
+  if(abs(sum(res[, "p"]) - 1) > 0.02) stop("bug de somme de prob trop loin de 1")
+  res[, "p"] <- res[, "p"] / sum(res[, "p"])
+  res
+}
+
 complement_credibilite <- function(players) {
   distr <- do.call(rbind, players)
   distr <- rbind(c(distr[1, 1], p=0), distr)
@@ -30,15 +41,8 @@ complement_credibilite <- function(players) {
   y <- y[ordre]
   y <- y/sum(y)
   x <- x[ordre]
-  step <- 5
   
-  res <- cbind(mu = seq(0 + step / 2, 100 - step / 2, step), 
-               p = sapply(seq(0 + step / 2, 100 - step / 2, step),
-                          function(x_seuil) sum(y[x <= (x_seuil + step / 2) & x > (x_seuil - step / 2)])))
-  res <- res[res[, 2] > 0, ]
-  if(abs(sum(res[, "p"]) - 1) > 0.02) stop("bug de somme de prob trop loin de 1")
-  res[, "p"] <- res[, "p"] / sum(res[, "p"])
-  res
+  smooth_distr(matrix(c(x, y), ncol=2, dimnames = list(NULL, c("mu", "p"))), step = 5)
 }
 
 credibilise <- function(distr, players, seuil = 0.7) {
@@ -54,6 +58,8 @@ show_current_probs <- function(players) {
   ranks <- ranks[ordre]
   pairs <- t(combn(1:length(ranks), 2))
   players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
+  
+  players <- lapply(players, simplifier_domain)
   
   prob <- mapply(function(distr_S1, distr_S2) {
     
@@ -81,6 +87,7 @@ show_current_ranking <- function(players, init_theta = NULL) {
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
   ranks <- ranks[ordre]
+  init_theta <- init_theta[names(players)]
   pairs <- t(combn(1:length(ranks), 2))
   
   # Trouver les composantes fortement connexes d'un graphe
@@ -93,14 +100,14 @@ show_current_ranking <- function(players, init_theta = NULL) {
   clust <- components(g)$membership
   clust <- clust[names(players)]
   
-  contraintes <- matrix(0, nrow=max(clust)*2, ncol=length(players))
+  contraintes <- matrix(0, nrow = max(clust) * 2, ncol = length(players))
   
   for(i in 1:max(clust)) {
-    contraintes[(i - 1)*2 + 1, clust == i] <- 1
-    contraintes[(i - 1)*2 + 2, clust == i] <- -1
+    contraintes[(i - 1) * 2 + 1, clust == i] <- 1
+    contraintes[(i - 1) * 2 + 2, clust == i] <- -1
   }
   
-  if (is.null(init_theta) | length(players) != length(init_theta)) {
+  if (is.null(init_theta) | any(is.na(names(init_theta)))) {
     init_theta <- rep(50, length(players))
     for(i in 1:max(clust)) {
       init_theta[clust == i] <- qnorm(seq(0.1, 0.9, length.out = sum(clust == i)), 50, 15)
@@ -112,7 +119,7 @@ show_current_ranking <- function(players, init_theta = NULL) {
   weights <- sapply(players[names(ranks)], compute_credibility)
   weights <- mapply(sum, weights[pairs[, 1]], weights[pairs[, 2]])
   to_optim <- function(Forces) {
-    estim <- 1/(1+10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
+    estim <- 1 / (1 + 10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
     mean(weights * (estim - probs[, "prob_win_11"])^2)
   }
   
@@ -120,13 +127,25 @@ show_current_ranking <- function(players, init_theta = NULL) {
   # res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
   #             ui = rbind(diag(length(players))),
   #             ci = rep(0, length(players)))
+
+  ui <- rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players)), contraintes)
+  ci <- c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players), sapply(1:max(clust), function(i) c(49.5, -50.5) * sum(clust == i)))
+  
+  #enlever les erreurs de contrainte == 0
+  if(any(ui %*% init_theta - ci <= 0)) {
+    which_constraint_violated <- which(ui %*% init_theta - ci <= 0)
+    for(i in which_constraint_violated) {
+      if(any(ui[i, ] > 0)) {
+        init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] + 0.01
+      } else {
+        init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] - 0.01
+      }
+    }
+  }
   
   #moyenne 50 et min 0 et max 100
   #pourrait donner des bugs si le monde est très dispersé
-  res <- constrOptim(init_theta, to_optim, grad = NULL,
-              ui = rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players)), contraintes),
-              ci = c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players), sapply(1:max(clust), function(i) c(49.5, -50.5) * sum(clust == i)))
-  )
+  res <- constrOptim(init_theta, to_optim, grad = NULL, ui = ui, ci = ci)
 
   
   #scores entre 1 et 100
@@ -232,9 +251,9 @@ show_ranking_history <- function(scores) {
   
   ranks <- NULL
   
-  for(d in as.character(all_dates[1:44])) {
+  for(d in as.character(all_dates[1:24])) {
     print(d)
-    
+    hist(sapply(players, nrow))
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
@@ -243,9 +262,9 @@ show_ranking_history <- function(scores) {
     if(d %in% as.character(game_dates)) {
       players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
     }
-    ranks <- show_current_ranking(players[player_in_ranking], init_theta = ranks)
+    
+    ranks <- show_current_ranking(players = players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
-    print(calculate_skill(players[["JPL"]], players))
   }
   
   list(players, graph_data)
