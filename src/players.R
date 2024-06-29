@@ -135,7 +135,7 @@ wassertein <- function(distrA, distrB, q = 1) {
 smooth_kernel_distr <- function(distr, init_distr, bandwidth) {
   y <- sapply(init_distr[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], bandwidth)))
   y <- y/sum(y)
-  cbind(mu=init_distr[, "mu"], p=y)
+  matrix(c(init_distr[, "mu"], y), ncol=2, dimnames = list(NULL, c("mu", "p")))
 }
 
 #kernel smoothing
@@ -144,8 +144,7 @@ distr_unsimplifier_top_n <- function(distr, init_distr) {
   bandwidth <- optimise(function(bandwidth) {
     kernel <- smooth_kernel_distr(distr, init_distr, bandwidth)
     wassertein(init_distr, kernel)
-    
-  }, c(0, 100), tol=0.1)$minimum
+  }, c(0, 50), tol=0.1)$minimum
   
   smooth_kernel_distr(distr, init_distr, bandwidth)
 }
