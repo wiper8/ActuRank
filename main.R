@@ -1,3 +1,4 @@
+set.seed(2024L)
 include_exact_points <- F
 
 source("src/import.R")
