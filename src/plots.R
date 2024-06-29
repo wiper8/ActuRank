@@ -80,7 +80,7 @@ show_current_probs <- function(players) {
              prob = round(prob, 3), prob_win_11 = round(sapply(prob, function(p) p_win_game_of(p, 11)), 3))
 }
 
-show_current_ranking <- function(players, init_theta = NULL) {
+show_current_ranking <- function(players, init_theta = NULL, show_credibility = FALSE) {
   probs <- show_current_probs(players)
   
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
@@ -161,20 +161,38 @@ show_current_ranking <- function(players, init_theta = NULL) {
   
   if(sqrt(res$value) > 0.02) warning("Convergence non parfaite des scores")
   
+  credibl <- sapply(players[names(res$par)], compute_credibility)
+  
   graph_data <- data.frame(
     score = res$par,
-    player = names(res$par)
+    player = names(res$par),
+    credibility = credibl
   )
   
-  print(
-    ggplot()+
-      geom_vline(aes(xintercept = score, col = player), data=graph_data, linewidth=2)+
-      geom_text(aes(x=score, y = sample(nrow(graph_data), nrow(graph_data)), label=player), data=graph_data, angle=45)+
-      scale_color_discrete(breaks = graph_data$player[order(graph_data$score, decreasing = T)])+
-      #xlim(0, 100)+
-      theme_bw()+
-      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
-  )
+  if(show_credibility) {
+    
+    print(
+      ggplot()+
+        geom_linerange(aes(ymin = 0, ymax = credibility, x = score, col = player), data=graph_data, linewidth=2)+
+        geom_text(aes(x=score, y = runif(nrow(graph_data), 0, credibility), label=player), data=graph_data, angle=45)+
+        scale_color_discrete(breaks = graph_data$player[order(graph_data$score, decreasing = T)])+
+        #xlim(0, 100)+
+        theme_bw()+
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
+    )
+  } else {
+    
+    print(
+      ggplot()+
+        geom_vline(aes(xintercept = score, col = player), data=graph_data, linewidth=2)+
+        geom_text(aes(x=score, y = sample(nrow(graph_data), nrow(graph_data)), label=player), data=graph_data, angle=45)+
+        scale_color_discrete(breaks = graph_data$player[order(graph_data$score, decreasing = T)])+
+        #xlim(0, 100)+
+        theme_bw()+
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
+    )
+  }
+  
   
   round(sort(res$par, decreasing = T), 1)
 }
@@ -222,6 +240,49 @@ show_detailed_skill <- function(players) {
   
 }
 
+show_detailed_skill_per_player <- function(players) {
+  
+  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
+  ranks <- ranks[order(ranks, decreasing = TRUE)]
+  print(ranks)
+  
+  graph_data <- data.frame(
+    skill = ranks,
+    player = names(ranks)
+  )
+  
+  players2 <- lapply(players, function(distr) {
+    y <- sapply(init_distr()[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
+    
+    #pour simplifier davantage
+    mu <- init_distr()[, "mu"]
+    keep <- y > max(y) / 1000
+    id_first <- which(keep)[1]
+    id_last <- tail(which(keep), 1)
+    if(id_first > 1) keep[id_first - 1] <- TRUE
+    if(id_last < length(keep)) keep[id_last - 1] <- TRUE
+    
+    mu <- mu[keep]
+    y <- y[keep]
+    y <- y/sum(y)
+    
+    cbind(mu=mu, p=y)
+  })
+  
+  
+  graph_data2 <- do.call(rbind, mapply(function(x, n) data.frame(x, "player"=n), players2, names(players2), SIMPLIFY = FALSE))
+  
+  ggplot()+
+    #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
+    geom_line(aes(x=mu, y=p, col = player), data = graph_data2,
+              linewidth=1, alpha=0.8)+
+    xlab("Skill")+ylab("Likelihood")+
+    theme_bw()+
+    xlim(0, 100)+
+    facet_grid(rows = vars(player))
+  
+}
+
 show_IC_skill <- function(players) {
   
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
@@ -249,9 +310,10 @@ show_IC_skill <- function(players) {
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
     geom_errorbar(aes(xmin = low, xmax = up, y = credibl, col = player), data=graph_data2,
                   linewidth = 1, alpha = 0.8)+
+    geom_text(aes(x=-5, y=credibl, label=player), data=graph_data2)+
     xlab("Skill")+ylab("Crédibilité")+
     theme_bw()+
-    xlim(0, 100)
+    xlim(-10, 100)+ylim(-0.1, 1.1)
 }
 
 show_distr <- function(distr) {
@@ -295,8 +357,6 @@ show_ranking_history <- function(scores) {
   for(d in as.character(all_dates[1:30])) {
     print(d)
     
-    print(show_distr(players$Gab))
-    
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
@@ -309,6 +369,8 @@ show_ranking_history <- function(scores) {
     ranks <- show_current_ranking(players = players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
     sapply(players, check_distr)
+    
+    print(show_detailed_skill_per_player(players[player_in_ranking]))
   }
   
   list(players, graph_data)

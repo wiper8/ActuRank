@@ -24,7 +24,13 @@ sort(sapply(players, compute_credibility), decreasing = T)
 
 show_current_ranking(players)
 
+show_current_ranking(players, show_credibility = TRUE)
+
 show_detailed_skill(players)
+
+show_detailed_skill_per_player(players)
+
+show_IC_skill(players)
 
 show_skill_level(players)
 
