@@ -351,8 +351,6 @@ posteriori_of_game_simplified_vectorized <- function(players, scores) {
     probs_ignorees2 <- 0
     tmp <- list(keep1 = rep(T, length(tmp[["keep1"]])),
                 keep2 = rep(T, length(tmp[["keep2"]])))
-  } else {
-    #print(paste0("  ", prod(sapply(tmp, sum))))
   }
   
   posteriori <- posteriori_1vs1_vectorized(
