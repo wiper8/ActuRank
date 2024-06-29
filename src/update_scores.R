@@ -423,7 +423,6 @@ posteriori_of_game_simplified <- function(players, score) {
     )
     posteriori_per_player <- post_marginal_per_player(posteriori)
     
-    #TODO cap_factor vraiment à 1??? c'est du rien sensé changer?
     posteriori_per_player[[1]] <- distr_unsimplifier_top_n(distr = posteriori_per_player[[1]], init_distr = players[[score[, "joueur_A1"]]])
     posteriori_per_player[[2]] <- distr_unsimplifier_top_n(distr = posteriori_per_player[[2]], init_distr = players[[score[, "joueur_A2"]]])
     posteriori_per_player[[3]] <- distr_unsimplifier_top_n(distr = posteriori_per_player[[3]], init_distr = players[[score[, "joueur_B1"]]])
