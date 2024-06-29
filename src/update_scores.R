@@ -80,9 +80,52 @@ p_win_game_of_not_vec <- function(p, g = 7) {
   sum(dnbinom(0:(g-1), g, p))
 }
 
-p_win_exact <- function(p, scoreA, scoreB) {
-  dnbinom(scoreA, scoreB, p)
+p_win_exact <- function(p, scoreA, scoreB, game_len, win) {
+  stopifnot(all.equal(length(scoreA), length(scoreB), length(game_len), length(win)))
+  if(length(p) > 1) stopifnot(length(scoreA) == 1)
+  if(length(scoreA) > 1) stopifnot(length(p) == 1)
+  stopifnot(all((scoreA > scoreB & win) | (scoreA < scoreB & !win)))
+  
+  
+  sans_ecart <- pmax(scoreA, scoreB) == game_len
+  
+  ifelse(
+    sans_ecart,
+    dnbinom(scoreB, scoreA, p) * win + dnbinom(scoreA, scoreB, 1 - p) * (1 - win),
+    p_win_exact_ecart(p, scoreA, scoreB, game_len)
+  )
 }
+
+
+p_win_exact_ecart <- function(p, scoreA, scoreB, game_len) {
+  # ex 8-6 game_len 5
+  # assurément on a passé par 4-4, puis ca prend 2 win consécutifs, une ou plusieurs fois
+  breaks <- pmax(scoreA, scoreB) - game_len
+  density_breaks1 <- (2 * p * (1 - p))^(breaks - 1) * p^2
+  density_breaks2 <- (2 * p * (1 - p))^(breaks - 1) * (1 - p)^2
+  density_ecart <- density_breaks1 * (scoreA > scoreB) + density_breaks2 * (scoreA < scoreB)
+  dbinom(game_len - 1, (game_len - 1) * 2, p) * density_ecart
+}
+
+stopifnot(abs(p_win_exact_ecart(0.6, 3, 1, 2) - (0.6 * 0.4 * 2 * 0.6^2)) < 0.000001)
+stopifnot(abs(p_win_exact_ecart(0.6, 1, 3, 2) - (0.6 * 0.4 * 2 * 0.4^2)) < 0.000001)
+stopifnot(abs(p_win_exact_ecart(0.6, 4, 2, 2) - (0.6 * 0.4 * 2 * 0.6 * 0.4 * 2 * 0.6^2)) < 0.000001)
+stopifnot(abs(p_win_exact_ecart(0.6, 3, 5, 2) - (0.6 * 0.4 * 2 * 0.6 * 0.4 * 2 * 0.6 * 0.4 * 2 * 0.4^2)) < 0.000001)
+stopifnot(abs(p_win_exact_ecart(0.6, 5, 3, 3) - (0.6 * 0.6 * 0.4 * 0.4 * 6 * 0.6 * 0.4 * 2 * 0.6^2)) < 0.000001)
+
+stopifnot(abs(p_win_exact(0.6, 1, 0, 1, 1) - 0.6) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 0, 1, 1, 0) - 0.4) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 2, 1, 2, 1) - 0.6*0.4*2*0.6) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 1, 2, 2, 0) - 0.6*0.4*2*0.4) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 1, 3, 3, 0) - 0.6*0.4^3*3) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 2, 3, 3, 0) - 0.6^2*0.4^3 * 6) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 2, 4, 3, 0) - 0.6^2*0.4^2*6*0.4^2) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 4, 2, 3, 1) - 0.6^2*0.4^2*6*0.6^2) < 0.00001)
+stopifnot(inherits(try(p_win_exact(0.6, 4, 2, 3, 0), silent = TRUE), "try-error")) # should be error
+stopifnot(abs(p_win_exact(0.6, 5, 3, 3, 1) - 0.6^2*0.4^2*6*0.6*0.4*2*0.6^2) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 3, 5, 3, 0) - 0.6^2*0.4^2*6*0.6*0.4*2*0.4^2) < 0.00001)
+stopifnot(abs(p_win_exact(0.6, 1, 4, 4, 0) - 0.6*0.4^4*4) < 0.00001)
+
 
 distr_P_1vs1 <- function(distr_F1_F2) {
   cbind(
@@ -180,8 +223,7 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   )
   
   Likelihood_fun1 <- function(p_win_1_pt) {
-    p <- p_win_exact(1 - p_win_1_pt, scoreA, scoreB) * (1 - win) + p_win_exact(p_win_1_pt, scoreB, scoreA) * win
-    
+    p <- p_win_exact(p_win_1_pt, scoreA, scoreB, game_len, win)
     prod(p)#^((0.5^(2 / 365))^as.numeric(Sys.Date() - date)))
   }
   
@@ -192,7 +234,7 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   }
   
   #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
-  if(include_exact_points | any(name %in% players_very_low_exposure)) {
+  if(include_exact_points | any(sapply(list(distr_S1, distr_S2), is_exact_score_used_for_player))) {
     Likelihood <- sapply(distr_P[, "P_1_wins_pt"], Likelihood_fun1) * distr_P[, "p_s1_s2"]
   } else {
     Likelihood <- sapply(distr_P[, "P_1_wins_pt"], Likelihood_fun2) * distr_P[, "p_s1_s2"]
@@ -223,8 +265,8 @@ posteriori_1vs1 <- function(distr_S1, distr_S2, game_len, win, date, scoreA, sco
          "p_s1_s2" = distr_S1_S2[, "p1"] * distr_S1_S2[, "p2"]
   )
   
-  if(include_exact_points | any(name %in% players_very_low_exposure)) {
-    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(1 - distr_P[, "P_A_wins_pt"], scoreA, scoreB) * (1 - win) + p_win_exact(distr_P[, "P_A_wins_pt"], scoreB, scoreA) * win)
+  if(include_exact_points | any(sapply(list(distr_S1, distr_S2), is_exact_score_used_for_player))) {
+    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(distr_P[, "P_1_wins_pt"], scoreA, scoreB, game_len, win))
     
     #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
     Likelihood <- distr_P[, "P_win_game"]#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_s1_s2"]
@@ -271,8 +313,8 @@ posteriori_2vs2 <- function(distr_SA1, distr_SA2,
                    "p_sa1_sa2_sb1_sb2" = apply(distr_SA1_SA2_SB1_SB2[, c("pA1", "pA2", "pB1", "pB2")], 1, prod)
   )
   
-  if(include_exact_points) {
-    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(1 - distr_P[, "P_A_wins_pt"], scoreA, scoreB) * (1 - win) + p_win_exact(distr_P[, "P_A_wins_pt"], scoreB, scoreA) * win)
+  if(include_exact_points | any(sapply(list(distr_SA1, distr_SA2, distr_SB1, distr_SB2), is_exact_score_used_for_player))) {
+    distr_P <- cbind(distr_P, "P_win_game" = p_win_exact(distr_P[, "P_A_wins_pt"], scoreA, scoreB, game_len, win))
     #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
     Likelihood <- distr_P[, "P_win_game"]#^((0.5^(2/365))^as.numeric(Sys.Date() - date)) * distr_P[, "p_sa1_sa2_sb1_sb2"]
   } else {
@@ -393,8 +435,8 @@ posteriori_of_game_simplified <- function(players, score) {
       game_len = as.numeric(score[, "game_len"]),
       win = as.numeric(score[, "win"]),
       date = as.Date(score[, "date"]),
-      scoreA = as.numeric(scores[, "score_A"]),
-      scoreB = as.numeric(scores[, "score_B"])
+      scoreA = as.numeric(score[, "score_A"]),
+      scoreB = as.numeric(score[, "score_B"])
     )
     posteriori_per_player <- post_marginal_per_player(posteriori)
     

@@ -76,10 +76,3 @@ for(d in as.character(dates)) {
 name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
 name <- name[!is.na(name)]
 
-players_very_low_exposure <- sapply(name, function(n) {
-  sum(as.numeric(scores[apply(scores, 1, function(score) {
-    n %in% score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]
-  }), "game_len"]))
-})
-players_very_low_exposure <- names(players_very_low_exposure)[players_very_low_exposure < 100]
-

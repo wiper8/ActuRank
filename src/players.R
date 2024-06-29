@@ -149,3 +149,8 @@ compute_credibility <- function(distr, k = 0.1) {
   v <- (sum(distr[, "mu"]^2 * distr[, "p"]) - sum((distr[, "mu"] * distr[, "p"]))^2)
   2 * pnorm(k * 50 / sqrt(v)) - 1
 }
+
+is_exact_score_used_for_player <- function(distr, seuil = 0.7) {
+  compute_credibility(distr) < seuil
+}
+
