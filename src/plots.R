@@ -5,7 +5,7 @@ show_skill_level <- function(players) {
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ranks <- ranks[order(ranks, decreasing = TRUE)]
   
-  x <- 0:100
+  x <- seq(0, 1, 0.01)
   
   graph_data <- data.frame(
     skill = ranks,
@@ -16,7 +16,7 @@ show_skill_level <- function(players) {
           geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
           scale_color_discrete(breaks = graph_data$player[order(graph_data$skill, decreasing = T)])+
           theme_bw()+xlab("Skill")+
-          xlim(0, 100)
+          xlim(0, 1)
   )
   ranks
 }
@@ -232,11 +232,11 @@ show_detailed_skill <- function(players) {
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
-    geom_line(aes(x=mu, y=p, col = player), data = graph_data2,
+    geom_line(aes(x=mu/100, y=p, col = player), data = graph_data2,
               linewidth=1, alpha=0.8)+
     xlab("Skill")+ylab("Likelihood")+
     theme_bw()+
-    xlim(0, 100)
+    xlim(0, 1)
   
 }
 
@@ -274,11 +274,11 @@ show_detailed_skill_per_player <- function(players) {
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
-    geom_line(aes(x=mu, y=p, col = player), data = graph_data2,
+    geom_line(aes(x=mu/100, y=p, col = player), data = graph_data2,
               linewidth=1, alpha=0.8)+
     xlab("Skill")+ylab("Likelihood")+
     theme_bw()+
-    xlim(0, 100)+
+    xlim(0, 1)+
     facet_grid(rows = vars(player))
   
 }
@@ -308,20 +308,20 @@ show_IC_skill <- function(players) {
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
-    geom_errorbar(aes(xmin = low, xmax = up, y = credibl, col = player), data=graph_data2,
+    geom_errorbar(aes(xmin = low/100, xmax = up/100, y = credibl, col = player), data=graph_data2,
                   linewidth = 1, alpha = 0.8)+
     geom_text(aes(x=-5, y=credibl, label=player), data=graph_data2)+
     xlab("Skill")+ylab("Crédibilité")+
     theme_bw()+
-    xlim(-10, 100)+ylim(-0.1, 1.1)
+    xlim(-0.1, 1)+ylim(-0.1, 1.1)
 }
 
 show_distr <- function(distr) {
   ggplot()+
-    geom_point(aes(x=mu, y=p), data=as.data.frame(distr))+
+    geom_point(aes(x=mu / 100, y=p), data=as.data.frame(distr))+
     xlab("Skill")+ylab("Likelihood")+
     theme_bw()+
-    xlim(0, 100)
+    xlim(0, 1)
 }
 
 
@@ -354,7 +354,7 @@ show_ranking_history <- function(scores) {
   
   ranks <- NULL
   
-  for(d in as.character(all_dates[1:30])) {
+  for(d in as.character(all_dates)) {#[1:30])) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))

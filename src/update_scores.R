@@ -2,7 +2,7 @@ library(data.table)
 
 calculate_skill <- function(distr_mu, players) {
   distr_mu <- credibilise(distr_mu, players)
-  round(sum(distr_mu[, "mu"] * distr_mu[, "p"]), 1)
+  round(sum(distr_mu[, "mu"] * distr_mu[, "p"]), 1) / 100
 }
 
 
