@@ -38,8 +38,8 @@ complement_credibilite <- function(players) {
   res
 }
 
-credibilise <- function(distr, players, seuil = 0.6) {
-  z <- min(1, sqrt(compute_credibility(distr) / seuil))
+credibilise <- function(distr, players, seuil = 0.7) {
+  z <- min(1, compute_credibility(distr) / seuil)
   complement <- complement_credibilite(players)
   rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
 }
@@ -243,4 +243,34 @@ show_ranking_history <- function(scores) {
   }
   
   list(players, graph_data)
+}
+
+show_played_against_grid <- function(players, scores) {
+  res <- matrix(0,
+                nrow = length(players), ncol = length(players),
+                dimnames = list(names(players), names(players))
+  )
+  for (i in 1:nrow(scores)) {
+    res[scores[i, 3], scores[i, 4]] <- res[scores[i, 3], scores[i, 4]] + sum(scores[i, c("score_A", "score_B")])
+    res[scores[i, 4], scores[i, 3]] <- res[scores[i, 4], scores[i, 3]] + sum(scores[i, c("score_A", "score_B")])
+    
+    # double
+    if (!is.na(scores[i, 2])) {
+      res[scores[i, 2], scores[i, 4]] <- res[scores[i, 2], scores[i, 4]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 2], scores[i, 5]] <- res[scores[i, 2], scores[i, 5]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 3], scores[i, 5]] <- res[scores[i, 3], scores[i, 5]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 4], scores[i, 2]] <- res[scores[i, 4], scores[i, 2]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 5], scores[i, 2]] <- res[scores[i, 5], scores[i, 2]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 5], scores[i, 3]] <- res[scores[i, 5], scores[i, 3]] + sum(scores[i, c("score_A", "score_B")])
+    }
+  }
+  
+  
+  # ordonner selon le plus de joueurs rencontrés
+  tri <- order(apply(res, 1, function(x) sum(x > 0)), decreasing = TRUE)
+  
+  reshaped_res <- reshape2::melt(res[tri, tri])
+  reshaped_res$value <- as.logical(reshaped_res$value)
+  ggplot(reshaped_res)+
+    geom_tile(aes(x=Var1, y=Var2, fill = value))
 }

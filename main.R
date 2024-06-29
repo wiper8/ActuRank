@@ -33,3 +33,5 @@ show_current_probs(players)
 
 lapply(show_skill_level(players) / 100, transition_matrix)
 
+show_played_against_grid(players, scores)
+
