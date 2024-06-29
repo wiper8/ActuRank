@@ -211,7 +211,7 @@ show_ranking_history <- function(scores) {
     as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
   })
   
-  drift_dates <- unique(unlist(drift_per_player))
+  drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
   all_dates <- c(game_dates, as.Date(drift_dates))
   all_dates <- unique(all_dates)
   all_dates <- as.Date(all_dates)
@@ -229,8 +229,7 @@ show_ranking_history <- function(scores) {
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
     if(d %in% as.character(drift_dates)) {
-      drifting_players_today <- sapply(drift_per_player, function(x) d %in% x)
-      players[player_in_ranking[name[drifting_players_today] %in% player_in_ranking]] <- lapply(players[player_in_ranking[name[drifting_players_today] %in% player_in_ranking]], drift)
+      players[player_in_ranking[name %in% player_in_ranking]] <- lapply(players[player_in_ranking[name %in% player_in_ranking]], drift)
     }
     if(d %in% as.character(game_dates)) {
       players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
