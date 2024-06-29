@@ -208,10 +208,7 @@ show_ranking_history <- function(scores) {
   game_dates <- sort(game_dates)
   
   drift_per_player <- lapply(name, function(nom) {
-    played <- apply(scores, 1, function(x) nom %in% x)
-    date <- seq.Date(as.Date(max(scores[played, "date"])), as.Date(max(scores[, "date"])), by = "+1 month")
-    date <- date[date > as.Date(max(scores[played, "date"]))]
-    as.character(date)
+    as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
   })
   
   drift_dates <- unique(unlist(drift_per_player))
