@@ -33,7 +33,7 @@ simplifier_domain <- function(distr, dim_len_mu_min = 20) {
   distr[distr[, "p"] >= 1/nrow(distr)/20 | distr[, "p"] >= (max(distr[, "mu"]) / 50) | distr[, "p"] >= 1/1000000, ]
 }
 
-drift <- function(distr, a = 0.05) {
+drift <- function(distr, a = 0.03) {
   #distr * (1-a)^k + priori * (1 - (1-a)^k)
   #\left(1-a\right)^{x}\cdot30\ +\ a\cdot10\cdot\frac{\left(1-\left(1-a\right)^{x}\right)}{a}
   priori <- init_distr()
