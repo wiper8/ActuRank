@@ -279,8 +279,8 @@ show_detailed_skill_per_player <- function(players) {
     xlab("Skill")+ylab("Likelihood")+
     theme_bw()+
     xlim(0, 1)+
-    facet_grid(rows = vars(player))
-  
+    facet_grid(rows = vars(player), scales = "free_y")+
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 }
 
 show_IC_skill <- function(players) {
@@ -349,16 +349,20 @@ show_ranking_history <- function(scores) {
   graph_data <- data.frame(
     date = rep(all_dates, each = length(name)),
     player = rep(name, length(all_dates)),
-    score = NA
+    score = NA,
+    played = FALSE
   )
   
   ranks <- NULL
   
-  for(d in as.character(all_dates)) {#[1:30])) {
+  for(d in as.character(all_dates)) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
+    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+    players_today <- players_today[!is.na(players_today)]
+    
     if(d %in% as.character(drift_dates)) {
       players[name[name %in% player_in_ranking]] <- lapply(players[name[name %in% player_in_ranking]], drift)
     }
@@ -368,6 +372,8 @@ show_ranking_history <- function(scores) {
     
     ranks <- show_current_ranking(players = players[player_in_ranking], init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
+    for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
+    
     sapply(players, check_distr)
     
     print(show_detailed_skill_per_player(players[player_in_ranking]))
