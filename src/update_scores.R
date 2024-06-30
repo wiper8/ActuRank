@@ -459,14 +459,15 @@ update_scores <- function(players, scores) {
   
   #1vs1
   for(pair in pairs) {
+    
     keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
     
     players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
     
-    if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players <- mapply(simplifier_domain, players, step = ifelse(sapply(players, function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+    players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
     
-    if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
   }
   
   #2vs2
@@ -476,10 +477,12 @@ update_scores <- function(players, scores) {
       # print(paste0(i, " 2vs2"))
       players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
       
-      if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      players <- mapply(simplifier_domain, players, step = ifelse(sapply(players, function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+      quatuor <- unlist(scores[!is.na(scores[, "joueur_A1"]), ][i, 2:5])
       
-      if(max(sapply(players, function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+      players[quatuor] <- mapply(simplifier_domain, players[quatuor], step = ifelse(sapply(players[quatuor], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+      
+      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
       
     }
   }
