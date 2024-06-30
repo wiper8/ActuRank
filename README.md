@@ -8,3 +8,8 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
 - Possiblement faire un graphique à 2 axe =, coin haut droit est 100, coin bas gauche est 0, et il y aurait des cercles.
+- Intégrer des copules? Je pourrais faire le choix de copule et de paramètre theta en simulant
+des fausses games et en comparant le MSE de la vraie densité coinjointe des densités marginales.
+Je n'ai qu'à fixer (avec saisonnalité ou non) des vrais paramètres de skills fixes, puis avec ca
+simuler des games, faire mon système en basse dimensionnalité pour que ca run et voir quelle copule
+et quel theta sont les meilleurs. 
