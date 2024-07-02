@@ -473,6 +473,7 @@ show_ranking_history_exact <- function(scores) {
     tmp <- simplifier_joint(joint_density, joint_density_init)
     joint_density <- tmp[[1]]
     joint_density_init <- tmp[[2]]
+    
     if(nrow_before != nrow(joint_density$joint_distr)) {
       print(paste0("nrow de la densité conjointe : ", nrow(
         joint_density$joint_distr), collapse = ""))
@@ -483,7 +484,24 @@ show_ranking_history_exact <- function(scores) {
       joint_density <- drift_exact(joint_density, joint_density_init)
     }
     if(d %in% as.character(game_dates)) {
-      joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ])
+      n_to_update <- nrow(scores[scores[, "date"] == d, ])
+      i <- 0
+      
+      while(nrow(joint_density$joint_distr) > 300000 & i <= n_to_update) {
+        i <- i + 1
+        joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][i, , drop = FALSE])
+        
+        tmp <- simplifier_joint(joint_density, joint_density_init)
+        joint_density <- tmp[[1]]
+        joint_density_init <- tmp[[2]]
+        
+        if(nrow_before != nrow(joint_density$joint_distr)) {
+          print(paste0("nrow de la densité conjointe : ", nrow(
+            joint_density$joint_distr), collapse = ""))
+          nrow_before <- nrow(joint_density$joint_distr)
+        }
+      }
+      joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][(i + 1):n_to_update, , drop = FALSE])
     }
     
     marginales <- marginal_from_joint(joint_density)
