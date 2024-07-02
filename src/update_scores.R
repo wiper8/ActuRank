@@ -601,7 +601,7 @@ update_scores_exact <- function(joint_density, scores) {
   
   posteriori <- apply(
     apply(scores, 1, function(score) {
-      print(score)
+      #print(score)
       if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score))
       likelihood_2vs2_exact(joint_density, score)
     }),

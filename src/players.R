@@ -40,7 +40,14 @@ simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
 }
 
 simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20) {
-  keep <- joint_density$joint_distr$p >= seuil | joint_density$joint_distr$p >= quantile(joint_density$joint_distr$p, 0.01)
+  tmp <- sort(joint_density$joint_distr$p)
+  cond_a <- joint_density$joint_distr$p >= seuil
+  cond_b <- joint_density$joint_distr$p >= tmp[cumsum(tmp) >= 0.001][1]
+  keep <- cond_b#cond_a | cond_b
+  
+  #print(paste0("kept because of seuil : ", round(mean(cond_a[keep]), 3)))
+  #print(paste0("kept because of quantile > 0.01 : ", round(mean(cond_b[keep]), 3)))
+  #print(paste0("kept because of both : ", round(mean((cond_a | cond_b)[keep]), 3)))
   
   joint_density$joint_distr <- joint_density$joint_distr[keep, ]
   joint_density_init <- joint_density_init[keep]
