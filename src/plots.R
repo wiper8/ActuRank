@@ -80,7 +80,7 @@ show_current_probs <- function(players) {
              prob = round(prob, 3), prob_win_11 = round(sapply(prob, function(p) p_win_game_of(p, 11)), 3))
 }
 
-show_current_ranking <- function(players, init_theta = NULL, show_credibility = FALSE) {
+show_current_ranking <- function(players, scores, init_theta = NULL, show_credibility = FALSE) {
   probs <- show_current_probs(players)
   
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
@@ -370,7 +370,7 @@ show_ranking_history <- function(scores) {
       players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
     }
     
-    ranks <- show_current_ranking(players = players[player_in_ranking], init_theta = ranks)
+    ranks <- show_current_ranking(players = players[player_in_ranking], scores = scores, init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
     for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
     
@@ -380,6 +380,114 @@ show_ranking_history <- function(scores) {
   }
   
   list(players, graph_data)
+}
+
+show_played_against_grid <- function(players, scores) {
+  res <- matrix(0,
+                nrow = length(players), ncol = length(players),
+                dimnames = list(names(players), names(players))
+  )
+  for (i in 1:nrow(scores)) {
+    res[scores[i, 3], scores[i, 4]] <- res[scores[i, 3], scores[i, 4]] + sum(scores[i, c("score_A", "score_B")])
+    res[scores[i, 4], scores[i, 3]] <- res[scores[i, 4], scores[i, 3]] + sum(scores[i, c("score_A", "score_B")])
+    
+    # double
+    if (!is.na(scores[i, 2])) {
+      res[scores[i, 2], scores[i, 4]] <- res[scores[i, 2], scores[i, 4]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 2], scores[i, 5]] <- res[scores[i, 2], scores[i, 5]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 3], scores[i, 5]] <- res[scores[i, 3], scores[i, 5]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 4], scores[i, 2]] <- res[scores[i, 4], scores[i, 2]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 5], scores[i, 2]] <- res[scores[i, 5], scores[i, 2]] + sum(scores[i, c("score_A", "score_B")])
+      res[scores[i, 5], scores[i, 3]] <- res[scores[i, 5], scores[i, 3]] + sum(scores[i, c("score_A", "score_B")])
+    }
+  }
+  
+  
+  # ordonner selon le plus de joueurs rencontrés
+  tri <- order(apply(res, 1, function(x) sum(x > 0)), decreasing = TRUE)
+  
+  reshaped_res <- reshape2::melt(res[tri, tri])
+  reshaped_res$value <- as.logical(reshaped_res$value)
+  ggplot(reshaped_res)+
+    geom_tile(aes(x=Var1, y=Var2, fill = value))
+}
+
+show_ranking_history_exact <- function(scores) {
+  
+  name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+  name <- name[!is.na(name)]
+  
+  players <- list()
+  for(n in name) players <- add_player(n, players)
+  
+  print(paste0("dim_len_mu = ", dim_len_mu, ", ", length(players), " players", collapse = ""))
+  
+  grid <- expand.grid(lapply(players, function(distr) distr[, "mu"]))
+  grid_id <- expand.grid(lapply(players, function(distr) 1:nrow(distr)))
+  
+  joint_density_init <- apply(
+    expand.grid(lapply(players, function(distr) distr[, "p"])),
+    1, prod
+  )
+  
+  joint_density <- cbind(grid, p = joint_density_init)
+  joint_density <- list(
+    grid_id = grid_id,
+    joint_distr = joint_density,
+    domains = lapply(players, function(distr) distr[, "mu"])
+  )
+  game_dates <- as.Date(unique(scores[, "date"]))
+  game_dates <- sort(game_dates)
+  
+  drift_per_player <- lapply(name, function(nom) {
+    as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
+  })
+  
+  drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
+  all_dates <- c(game_dates, as.Date(drift_dates))
+  all_dates <- unique(all_dates)
+  all_dates <- as.Date(all_dates)
+  all_dates <- sort(all_dates)
+  
+  graph_data <- data.frame(
+    date = rep(all_dates, each = length(name)),
+    player = rep(name, length(all_dates)),
+    score = NA,
+    played = FALSE
+  )
+  
+  ranks <- NULL
+  
+  for(d in as.character(all_dates)) {
+    print(d)
+    
+    player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+    player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
+    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+    players_today <- players_today[!is.na(players_today)]
+    
+    tmp <- simplifier_joint(joint_density, joint_density_init)
+    joint_density <- tmp[[1]]
+    joint_density_init <- tmp[[2]]
+    print(nrow(joint_density$joint_distr))
+    
+    if(d %in% as.character(drift_dates)) {
+      joint_density <- drift_exact(joint_density, joint_density_init)
+    }
+    if(d %in% as.character(game_dates)) {
+      joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ])
+    }
+    
+    marginales <- marginal_from_joint(joint_density)
+    
+    ranks <- show_current_ranking(players = marginales[player_in_ranking], scores = scores, init_theta = ranks)
+    for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
+    for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
+    
+    #print(show_detailed_skill_per_player(marginales[player_in_ranking]))
+  }
+  
+  list(marginales, graph_data)
 }
 
 show_played_against_grid <- function(players, scores) {
