@@ -5,6 +5,19 @@ calculate_skill <- function(distr_mu, players) {
   round(sum(distr_mu[, "mu"] * distr_mu[, "p"]), 1) / 100
 }
 
+marginal_from_joint <- function(joint_density) {
+  res <- lapply(names(joint_density$grid_id), function(nom) {
+    idx_unique <- 1:length(joint_density$domains[[nom]])
+    mu_unique <- joint_density$domains[[nom]]
+    matrix(
+      c(mu_unique,
+        sapply(idx_unique, function(mu_idx) sum(joint_density$joint_distr[joint_density$grid_id[[nom]] == mu_idx, "p"]))
+      ), ncol = 2, dimnames = list(NULL, c("mu", "p"))
+    )
+  })
+  names(res) <- names(joint_density$grid_id)
+  res
+}
 
 post_marginal_per_player <- function(posteriori) {
   if(ncol(posteriori) == 3) {
@@ -94,6 +107,15 @@ p_win_exact <- function(p, scoreA, scoreB, game_len, win) {
     dnbinom(scoreB, scoreA, p) * win + dnbinom(scoreA, scoreB, 1 - p) * (1 - win),
     p_win_exact_ecart(p, scoreA, scoreB, game_len)
   )
+}
+
+p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win) {
+  stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
+  
+  sans_ecart <- max(scoreA, scoreB) == game_len
+  
+  if(sans_ecart) return(dnbinom(scoreB, scoreA, p) * win + dnbinom(scoreA, scoreB, 1 - p) * (1 - win))
+  p_win_exact_ecart(p, scoreA, scoreB, game_len)
 }
 
 
@@ -248,6 +270,92 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   )
   
   posteriori
+}
+
+likelihood_1vs1_exact <- function(joint_density, score) {
+  name <- unlist(score[c("joueur_A2", "joueur_B1")])
+  
+  MS1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
+  MS2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
+  P_1_wins_pt <- list(
+    matrix(
+      apply(
+        expand.grid(1:length(MS1), 1:length(MS2)),
+        1,
+        function(idx) prob_win_point_1vs1_knowing_skills(MS1[[idx[1]]], MS2[[idx[2]]])
+      ),
+      nrow=length(MS1)
+    )
+  )
+  #P_1_wins_pt <- list(t(sapply(1:length(MS1), function(i) sapply(1:length(MS2), function(j) prob_win_point_1vs1_knowing_skills(MS1[[i]], MS2[[j]])))))
+  P_1_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_1_wins_pt, as.list(idx))))
+  
+  Likelihood_fun1 <- function(p_win_1_pt) {
+    p_win_exact_not_vec(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
+  }
+  
+  Likelihood_fun2 <- function(p_win_1_pt) {
+    p <- sapply(p_win_1_pt, p_win_game_of_not_vec, g = as.numeric(score["game_len"]))
+    win <- as.numeric(score["win"])
+    p * win + (1 - p) * (1 - win)
+  }
+  
+  marginales <- marginal_from_joint(joint_density)
+  
+  
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+    Likelihood <- Likelihood_fun1(P_1_wins_pt)
+  } else {
+    Likelihood <- Likelihood_fun2(P_1_wins_pt)
+  }
+  
+  Likelihood
+}
+
+likelihood_2vs2_exact <- function(joint_density, score) {
+  name <- unlist(score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")])
+  
+  MSA1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
+  MSA2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
+  MSB1 <- lapply(joint_density$domains[[name[3]]] / 100, transition_matrix)
+  MSB2 <- lapply(joint_density$domains[[name[4]]] / 100, transition_matrix)
+  
+  P_A_wins_pt <- list(
+    array(
+      apply(
+        expand.grid(1:length(MSA1), 1:length(MSA2), 1:length(MSB1), 1:length(MSB2)),
+        1,
+        function(idx) prob_win_point_2vs2_knowing_skills(
+          MSA1[[idx[1]]], MSA2[[idx[2]]], MSB1[[idx[3]]], MSB2[[idx[4]]])
+      ),
+      dim = c(length(MSA1), length(MSA2), length(MSB1), length(MSB2))
+    )
+  )
+  
+  P_A_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_A_wins_pt, as.list(idx))))
+  
+  Likelihood_fun1 <- function(P_A_wins_pt) {
+    p_win_exact_not_vec(P_A_wins_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
+  }
+  
+  Likelihood_fun2 <- function(P_A_wins_pt) {
+    p <- sapply(P_A_wins_pt, p_win_game_of_not_vec, g = as.numeric(score["game_len"]))
+    win <- as.numeric(score["win"])
+    p * win + (1 - p) * (1 - win)
+  }
+  
+  marginales <- marginal_from_joint(joint_density)
+  
+  
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+    Likelihood <- Likelihood_fun1(P_A_wins_pt)
+  } else {
+    Likelihood <- Likelihood_fun2(P_A_wins_pt)
+  }
+  
+  Likelihood
 }
 
 posteriori_1vs1 <- function(distr_S1, distr_S2, game_len, win, date, scoreA, scoreB, name) {
@@ -489,5 +597,59 @@ update_scores <- function(players, scores) {
   players
 }
 
+update_scores_exact <- function(joint_density, scores) {
+  
+  posteriori <- apply(
+    apply(scores, 1, function(score) {
+      if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score))
+      likelihood_2vs2_exact(joint_density, score)
+    }),
+    1, prod
+  ) * joint_density$joint_distr$p
+  
+  posteriori <- posteriori / sum(posteriori)
+  
+  #players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+  
+  #if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
 
+  joint_density$joint_distr$p <- posteriori
+  joint_density
+}
+
+update_scores_copules <- function(players, scores) {
+  
+  pairs <- sample(players_pairs(scores)) #shuffler pcq l'ordre peut avoir un certain impact
+  
+  #1vs1
+  for(pair in pairs) {
+    
+    keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
+    
+    players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
+    
+    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+    players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+    
+    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+  }
+  
+  #2vs2
+  if(nrow(scores[!is.na(scores[, "joueur_A1"]), ]) > 0) {
+    
+    for(i in 1:nrow(scores[!is.na(scores[, "joueur_A1"]), ])) {
+      # print(paste0(i, " 2vs2"))
+      players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
+      
+      quatuor <- unlist(scores[!is.na(scores[, "joueur_A1"]), ][i, 2:5])
+      
+      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+      players[quatuor] <- mapply(simplifier_domain, players[quatuor], step = ifelse(sapply(players[quatuor], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
+      
+      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
+      
+    }
+  }
+  players
+}
  
