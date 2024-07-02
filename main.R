@@ -1,5 +1,6 @@
 set.seed(2024L)
 include_exact_points <- F
+dim_len_mu <- 30
 
 source("src/import.R")
 source("src/update_scores.R")
