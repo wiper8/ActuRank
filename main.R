@@ -22,9 +22,9 @@ ggplot(tmp[[2]])+
 
 sort(sapply(players, compute_credibility), decreasing = T)
 
-show_current_ranking(players)
+show_current_ranking(players, scores)
 
-show_current_ranking(players, show_credibility = TRUE)
+show_current_ranking(players, scores, show_credibility = TRUE)
 
 show_detailed_skill(players)
 
