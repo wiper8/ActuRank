@@ -8,3 +8,4 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
 - Possiblement faire un graphique à 2 axe =, coin haut droit est 100, coin bas gauche est 0, et il y aurait des cercles.
+- Ajouter version exacte des probs de conversion pcq j'ai un bug, gab devient premier au jour 2.
