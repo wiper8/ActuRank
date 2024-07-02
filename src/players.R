@@ -39,14 +39,13 @@ simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
   res[tmp, , drop = FALSE]
 }
 
-simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 30) {
-  keep <- joint_density$joint_distr$p >= seuil
-  #keep <- apply(joint_density$grid_id, 1, function(x) x["Will"] != 1)
+simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20) {
+  keep <- joint_density$joint_distr$p >= seuil | joint_density$joint_distr$p >= quantile(joint_density$joint_distr$p, 0.01)
+  
   joint_density$joint_distr <- joint_density$joint_distr[keep, ]
   joint_density_init <- joint_density_init[keep]
   joint_density$grid_id <- joint_density$grid_id[keep, ]
-  #joint_density$grid_id$Will[joint_density$grid_id$Will >= 1] <- joint_density$grid_id$Will[joint_density$grid_id$Will >= 1] - 1
-  #joint_density$domains$Will <- joint_density$domains$Will[-1]
+  
   joint_density$joint_distr <- joint_density$joint_distr / sum(joint_density$joint_distr)
   joint_density_init <- joint_density_init / sum(joint_density_init)
   list(joint_density, joint_density_init)
@@ -173,6 +172,66 @@ tails_simplifier_1vs1 <- function(distr1, distr2) {
 add_player <- function(name, players) {
   players[[name]] <- init_distr()
   players
+}
+
+add_player_exact <- function(name, joint_density, joint_density_init) {
+  joint_density$domains[[name]] <- init_distr()[, "mu"]
+  
+  if(nrow(joint_density$joint_distr) == 0) {
+    grid <- as.data.frame(init_distr())
+    
+    joint_density$grid_id <- data.frame(1:nrow(grid))
+    colnames(joint_density$grid_id) <- name
+    joint_density_init <- init_distr()[, "p"]
+    joint_density$joint_distr <- data.frame(grid["mu"], p = joint_density_init)
+    colnames(joint_density$joint_distr) <- c(name, "p")
+  } else {
+    new_names <- names(joint_density$domains)
+    
+    tmp <- expand.grid(1:nrow(joint_density$grid_id), init_distr()[, "mu"])
+    
+    # convert to matrix to speedup
+    joint_density$joint_distr <- as.matrix(joint_density$joint_distr)
+    joint_density$grid_id <- as.matrix(joint_density$grid_id)
+    
+    id_col_p <- ncol(joint_density$joint_distr)
+    
+    grid <- do.call(rbind, lapply(
+      1:nrow(tmp), 
+      function(i) c(
+        joint_density$joint_distr[tmp[i, 1], -id_col_p],
+        tmp[i, 2]
+      )
+    ))
+    
+    tmp <- expand.grid(1:nrow(joint_density$grid_id), 1:nrow(init_distr()))
+    grid_id <- do.call(rbind, lapply(
+      1:nrow(tmp), 
+      function(i) c(joint_density$grid_id[tmp[i, 1], ], tmp[i, 2])
+    ))
+    
+    joint_density$grid_id <- as.data.frame(grid_id)
+    colnames(joint_density$grid_id) <- new_names
+    
+    joint_density$joint_distr <- as.data.frame(joint_density$joint_distr)
+    
+    
+    joint_density$joint_distr <- cbind(
+      as.data.frame(grid),
+      p = apply(
+        expand.grid(joint_density$joint_distr$p, init_distr()[, "p"]),
+        1, prod
+      )
+    )
+    colnames(joint_density$joint_distr) <- c(new_names, "p")
+    
+    joint_density_init <- apply(
+      expand.grid(joint_density_init, init_distr()[, "p"]),
+      1, prod
+    )
+  }
+  
+  list(joint_density, joint_density_init)
 }
 
 

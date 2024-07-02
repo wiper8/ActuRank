@@ -1,7 +1,7 @@
 library(data.table)
 
 calculate_skill <- function(distr_mu, players) {
-  distr_mu <- credibilise(distr_mu, players)
+  #distr_mu <- credibilise(distr_mu, players)
   round(sum(distr_mu[, "mu"] * distr_mu[, "p"]), 1) / 100
 }
 
@@ -601,6 +601,7 @@ update_scores_exact <- function(joint_density, scores) {
   
   posteriori <- apply(
     apply(scores, 1, function(score) {
+      print(score)
       if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score))
       likelihood_2vs2_exact(joint_density, score)
     }),

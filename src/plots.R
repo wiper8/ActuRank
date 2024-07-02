@@ -51,13 +51,14 @@ credibilise <- function(distr, players, seuil = 0.7) {
   rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
 }
 
+#TODO ajouter une version exacte?
 show_current_probs <- function(players) {
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
   ranks <- ranks[ordre]
   pairs <- t(combn(1:length(ranks), 2))
-  players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
+  #players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
   
   players <- lapply(players, simplifier_domain)
   
@@ -72,8 +73,8 @@ show_current_probs <- function(players) {
     sum(mapply(function(MS1, MS2) prob_win_point_1vs1_knowing_skills(MS1, MS2),
                MS1, MS2) * distr_S1_S2[, "p1"] * distr_S1_S2[, "p2"])
   },
-  players_credibilise[pairs[, 1]],
-  players_credibilise[pairs[, 2]]
+  players[pairs[, 1]],#players_credibilise[pairs[, 1]],
+  players[pairs[, 2]]#players_credibilise[pairs[, 2]]
   )
   
   data.frame(A=names(ranks)[pairs[, 1]], B=names(ranks)[pairs[, 2]],
@@ -417,31 +418,20 @@ show_ranking_history_exact <- function(scores) {
   name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
   name <- name[!is.na(name)]
   
-  players <- list()
-  for(n in name) players <- add_player(n, players)
+  grid <- expand.grid(c())
+  grid_id <- grid
   
-  print(paste0("dim_len_mu = ", dim_len_mu, ", ", length(players), " players", collapse = ""))
-  
-  grid <- expand.grid(lapply(players, function(distr) distr[, "mu"]))
-  grid_id <- expand.grid(lapply(players, function(distr) 1:nrow(distr)))
-  
-  joint_density_init <- apply(
-    expand.grid(lapply(players, function(distr) distr[, "p"])),
-    1, prod
-  )
+  joint_density_init <- numeric(0)
   
   joint_density <- cbind(grid, p = joint_density_init)
   joint_density <- list(
     grid_id = grid_id,
     joint_distr = joint_density,
-    domains = lapply(players, function(distr) distr[, "mu"])
+    domains = list()
   )
+  
   game_dates <- as.Date(unique(scores[, "date"]))
   game_dates <- sort(game_dates)
-  
-  drift_per_player <- lapply(name, function(nom) {
-    as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
-  })
   
   drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
   all_dates <- c(game_dates, as.Date(drift_dates))
@@ -457,19 +447,37 @@ show_ranking_history_exact <- function(scores) {
   )
   
   ranks <- NULL
+  marginales <- list()
+  nrow_before <- 0
   
   for(d in as.character(all_dates)) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
+    
+    #ajouter les nouveaux joueurs
+    for(n in player_in_ranking[!player_in_ranking %in% names(marginales)]) {
+      tmp <- add_player_exact(n, joint_density, joint_density_init)
+      joint_density <- tmp[[1]]
+      joint_density_init <- tmp[[2]]
+      if(nrow_before != nrow(joint_density$joint_distr)) {
+        print(paste0("nrow de la densité conjointe : ", nrow(
+          joint_density$joint_distr), collapse = ""))
+        nrow_before <- nrow(joint_density$joint_distr)
+      }
+    }
     players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     players_today <- players_today[!is.na(players_today)]
     
     tmp <- simplifier_joint(joint_density, joint_density_init)
     joint_density <- tmp[[1]]
     joint_density_init <- tmp[[2]]
-    print(nrow(joint_density$joint_distr))
+    if(nrow_before != nrow(joint_density$joint_distr)) {
+      print(paste0("nrow de la densité conjointe : ", nrow(
+        joint_density$joint_distr), collapse = ""))
+      nrow_before <- nrow(joint_density$joint_distr)
+    }
     
     if(d %in% as.character(drift_dates)) {
       joint_density <- drift_exact(joint_density, joint_density_init)
