@@ -5,8 +5,6 @@
 
 players <- list()
 
-dim_len_mu <- 30
-
 init_distr <- function() {
   mu1 <- qbeta(seq(0, 1, length.out = dim_len_mu), 2, 2) * 99 + 1
   distr_mu1 <- cbind("mu"=mu1, "p"=1/dim_len_mu)
@@ -41,6 +39,19 @@ simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
   res[tmp, , drop = FALSE]
 }
 
+simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 30) {
+  keep <- joint_density$joint_distr$p >= seuil
+  #keep <- apply(joint_density$grid_id, 1, function(x) x["Will"] != 1)
+  joint_density$joint_distr <- joint_density$joint_distr[keep, ]
+  joint_density_init <- joint_density_init[keep]
+  joint_density$grid_id <- joint_density$grid_id[keep, ]
+  #joint_density$grid_id$Will[joint_density$grid_id$Will >= 1] <- joint_density$grid_id$Will[joint_density$grid_id$Will >= 1] - 1
+  #joint_density$domains$Will <- joint_density$domains$Will[-1]
+  joint_density$joint_distr <- joint_density$joint_distr / sum(joint_density$joint_distr)
+  joint_density_init <- joint_density_init / sum(joint_density_init)
+  list(joint_density, joint_density_init)
+}
+
 drift <- function(distr, a = 0.03) {
   #distr * (1-a)^k + priori * (1 - (1-a)^k)
   #\left(1-a\right)^{x}\cdot30\ +\ a\cdot10\cdot\frac{\left(1-\left(1-a\right)^{x}\right)}{a}
@@ -52,6 +63,12 @@ drift <- function(distr, a = 0.03) {
   y <- sapply(unique(x), function(xi) sum(y[x == xi]))
   x <- unique(x)
   cbind(mu=x, p=y)
+}
+
+
+drift_exact <- function(joint_density, joint_density_init, a = 0.03) {
+  joint_density$joint_distr$p <- (1 - a) * joint_density$joint_distr$p + a * joint_density_init
+  joint_density
 }
 
 distr_simplifier_top_n <- function(distr, n = 10) {
