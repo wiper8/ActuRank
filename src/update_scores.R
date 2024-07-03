@@ -53,7 +53,7 @@ post_marginal_per_player <- function(posteriori) {
 distr_F1_F2_1vs1 <- function(distr_F1, distr_F2) {
   
   tmp <- faster_expand.grid(1:nrow(distr_F1), 1:nrow(distr_F2))
-  distr_F1_F2 <- cbind(distr_F1[tmp[, 1], ], distr_F2[tmp[, 2], ])
+  distr_F1_F2 <- cbind(distr_F1[tmp[, 1], , drop = FALSE], distr_F2[tmp[, 2], , drop = FALSE])
   colnames(distr_F1_F2) <- c(t(sapply(colnames(distr_F1), function(x) paste0(x, c("1", "2")))))
   distr_F1_F2
 }

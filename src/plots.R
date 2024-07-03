@@ -136,12 +136,13 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   if(any(ui %*% init_theta - ci <= 0)) {
     which_constraint_violated <- which(ui %*% init_theta - ci <= 0)
     for(i in which_constraint_violated) {
-      if(any(ui[i, ] > 0)) {
-        init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] + 0.01
-      } else {
-        init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] - 0.01
-      }
+      init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] + (50 - mean(init_theta[ui[i, ] != 0]))
     }
+  }
+  if(any(ui %*% init_theta - ci <= 0)) {
+    print(init_theta)
+    print(ui %*% init_theta - ci)
+    init_theta <- rep(50, length(players))
   }
   
   #moyenne 50 et min 0 et max 100
@@ -470,9 +471,11 @@ show_ranking_history_exact <- function(scores) {
     players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     players_today <- players_today[!is.na(players_today)]
     
-    tmp <- simplifier_joint(joint_density, joint_density_init)
-    joint_density <- tmp[[1]]
-    joint_density_init <- tmp[[2]]
+    if(nrow(joint_density$joint_distr) > 100000) {
+      tmp <- simplifier_joint(joint_density, joint_density_init)
+      joint_density <- tmp[[1]]
+      joint_density_init <- tmp[[2]]
+    }
     
     if(nrow_before != nrow(joint_density$joint_distr)) {
       print(paste0("nrow de la densité conjointe : ", nrow(

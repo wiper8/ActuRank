@@ -1,5 +1,5 @@
 include_exact_points <- FALSE
-dim_len_mu <- 5
+dim_len_mu <- 3
 
 source("src/import.R")
 source("src/update_scores.R")
@@ -10,7 +10,7 @@ scores_stats(scores, players)
 
 games_matchups(scores, players)
 
-tmp <- show_ranking_history_exact(scores)
+tmp <- show_ranking_history_exact(scores=scores)
 players <- tmp[[1]]
 
 #ranking history
