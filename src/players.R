@@ -39,10 +39,10 @@ simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
   res[tmp, , drop = FALSE]
 }
 
-simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20) {
+simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20, max_dimensionality = 300000) {
   tmp <- sort(joint_density$joint_distr$p)
   cond_a <- joint_density$joint_distr$p >= seuil
-  cond_b <- joint_density$joint_distr$p >= tmp[cumsum(tmp) >= 0.005][1]
+  cond_b <- joint_density$joint_distr$p >= min(tmp[cumsum(tmp) >= 0.005][1], min(tail(tmp, max_dimensionality)))
   keep <- cond_b#cond_a | cond_b
   
   #print(paste0("kept because of seuil : ", round(mean(cond_a[keep]), 3)))

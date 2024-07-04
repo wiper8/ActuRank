@@ -136,12 +136,10 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   if(any(ui %*% init_theta - ci <= 0)) {
     which_constraint_violated <- which(ui %*% init_theta - ci <= 0)
     for(i in which_constraint_violated) {
-      init_theta[ui[i, ] != 0] <- init_theta[ui[i, ] != 0] + (50 - mean(init_theta[ui[i, ] != 0]))
+      init_theta[ui[i, ] != 0] <- pmin(pmax(0.1, init_theta[ui[i, ] != 0] + (50 - mean(init_theta[ui[i, ] != 0]))), 99.9)
     }
   }
   if(any(ui %*% init_theta - ci <= 0)) {
-    print(init_theta)
-    print(ui %*% init_theta - ci)
     init_theta <- rep(50, length(players))
   }
   
@@ -451,7 +449,7 @@ show_ranking_history_exact <- function(scores) {
   marginales <- list()
   nrow_before <- 0
   
-  for(d in as.character(all_dates)) {
+  for(d in as.character(all_dates[1:34])) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
@@ -490,7 +488,7 @@ show_ranking_history_exact <- function(scores) {
       n_to_update <- nrow(scores[scores[, "date"] == d, ])
       i <- 0
       
-      while(nrow(joint_density$joint_distr) > 300000 & i <= n_to_update) {
+      while(nrow(joint_density$joint_distr) > 300000 & i < n_to_update) {
         i <- i + 1
         joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][i, , drop = FALSE])
         
@@ -504,7 +502,7 @@ show_ranking_history_exact <- function(scores) {
           nrow_before <- nrow(joint_density$joint_distr)
         }
       }
-      joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][(i + 1):n_to_update, , drop = FALSE])
+      if(i < n_to_update) joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][(i + 1):n_to_update, , drop = FALSE])
     }
     
     marginales <- marginal_from_joint(joint_density)
