@@ -449,7 +449,7 @@ show_ranking_history_exact <- function(scores) {
   marginales <- list()
   nrow_before <- 0
   
-  for(d in as.character(all_dates[1:34])) {
+  for(d in as.character(all_dates)) {
     print(d)
     
     player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
