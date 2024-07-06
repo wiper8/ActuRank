@@ -39,11 +39,16 @@ simplifier_domain <- function(distr, dim_len_mu_min = 15, step = 1) {
   res[tmp, , drop = FALSE]
 }
 
-simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20, max_dimensionality = 300000) {
+simplifier_joint <- function(joint_density, joint_density_init, seuil = 1 / nrow(joint_density$joint_distr) / 20, max_dimensionality = 100000) {
   tmp <- sort(joint_density$joint_distr$p)
   cond_a <- joint_density$joint_distr$p >= seuil
   cond_b <- joint_density$joint_distr$p >= min(tmp[cumsum(tmp) >= 0.005][1], min(tail(tmp, max_dimensionality)))
   keep <- cond_b#cond_a | cond_b
+  if(any(!keep)) {
+    print(paste0("% de données conservées : ", round(mean(keep), 5) * 100), collapse = "")
+    print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]), 5) * 100), collapse = "")
+  }
+  
   
   #print(paste0("kept because of seuil : ", round(mean(cond_a[keep]), 3)))
   #print(paste0("kept because of quantile > 0.01 : ", round(mean(cond_b[keep]), 3)))

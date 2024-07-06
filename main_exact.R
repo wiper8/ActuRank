@@ -1,5 +1,5 @@
 include_exact_points <- FALSE
-dim_len_mu <- 3
+dim_len_mu <- 10
 
 source("src/import.R")
 source("src/update_scores.R")

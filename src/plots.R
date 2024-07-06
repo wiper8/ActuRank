@@ -469,7 +469,7 @@ show_ranking_history_exact <- function(scores) {
     players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     players_today <- players_today[!is.na(players_today)]
     
-    if(nrow(joint_density$joint_distr) > 100000) {
+    if(nrow(joint_density$joint_distr) > 50000) {
       tmp <- simplifier_joint(joint_density, joint_density_init)
       joint_density <- tmp[[1]]
       joint_density_init <- tmp[[2]]
@@ -488,7 +488,7 @@ show_ranking_history_exact <- function(scores) {
       n_to_update <- nrow(scores[scores[, "date"] == d, ])
       i <- 0
       
-      while(nrow(joint_density$joint_distr) > 300000 & i < n_to_update) {
+      while(nrow(joint_density$joint_distr) > 50000 & i < n_to_update) {
         i <- i + 1
         joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][i, , drop = FALSE])
         
