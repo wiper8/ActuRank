@@ -252,21 +252,7 @@ show_detailed_skill_per_player <- function(players) {
   )
   
   players2 <- lapply(players, function(distr) {
-    y <- sapply(init_distr()[, "mu"], function(x) sum(distr[, "p"] * dnorm(x, distr[, "mu"], 1.5*mean(diff(distr[, "mu"])))))
-    
-    #pour simplifier davantage
-    mu <- init_distr()[, "mu"]
-    keep <- y > max(y) / 1000
-    id_first <- which(keep)[1]
-    id_last <- tail(which(keep), 1)
-    if(id_first > 1) keep[id_first - 1] <- TRUE
-    if(id_last < length(keep)) keep[id_last - 1] <- TRUE
-    
-    mu <- mu[keep]
-    y <- y[keep]
-    y <- y/sum(y)
-    
-    cbind(mu=mu, p=y)
+    distr[distr[, "p"] > 0, , drop = FALSE]
   })
   
   
@@ -274,13 +260,14 @@ show_detailed_skill_per_player <- function(players) {
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
-    geom_line(aes(x=mu/100, y=p, col = player), data = graph_data2,
+    geom_line(aes(x=mu/100, y=p), data = graph_data2,
               linewidth=1, alpha=0.8)+
     xlab("Skill")+ylab("Likelihood")+
     theme_bw()+
     xlim(0, 1)+
     facet_grid(rows = vars(player), scales = "free_y")+
-    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+          legend.position = "none")
 }
 
 show_IC_skill <- function(players) {
@@ -295,8 +282,8 @@ show_IC_skill <- function(players) {
   )
   
   players_IC <- sapply(players, function(distr) {
-    res <- inverse_cdf(distr)[c(11, 991)] #1% and 99%
-    names(res) <- c("low", "up")
+    res <- inverse_cdf(distr)[c(11, 501, 991)] #1% and 99%
+    names(res) <- c("low", "med", "up")
     res
   })
   
@@ -308,6 +295,7 @@ show_IC_skill <- function(players) {
   
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
+    geom_point(aes(x=med/100, y=credibl, col = player), data = graph_data2)+
     geom_errorbar(aes(xmin = low/100, xmax = up/100, y = credibl, col = player), data=graph_data2,
                   linewidth = 1, alpha = 0.8)+
     geom_text(aes(x=-5, y=credibl, label=player), data=graph_data2)+
@@ -452,24 +440,7 @@ show_ranking_history_exact <- function(scores) {
   for(d in as.character(all_dates)) {
     print(d)
     
-    player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-    player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
-    
-    #ajouter les nouveaux joueurs
-    for(n in player_in_ranking[!player_in_ranking %in% names(marginales)]) {
-      tmp <- add_player_exact(n, joint_density, joint_density_init)
-      joint_density <- tmp[[1]]
-      joint_density_init <- tmp[[2]]
-      if(nrow_before != nrow(joint_density$joint_distr)) {
-        print(paste0("nrow de la densité conjointe : ", nrow(
-          joint_density$joint_distr), collapse = ""))
-        nrow_before <- nrow(joint_density$joint_distr)
-      }
-    }
-    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-    players_today <- players_today[!is.na(players_today)]
-    
-    if(nrow(joint_density$joint_distr) > 50000) {
+    if(nrow(joint_density$joint_distr) > 10000) {
       tmp <- simplifier_joint(joint_density, joint_density_init)
       joint_density <- tmp[[1]]
       joint_density_init <- tmp[[2]]
@@ -488,8 +459,25 @@ show_ranking_history_exact <- function(scores) {
       n_to_update <- nrow(scores[scores[, "date"] == d, ])
       i <- 0
       
-      while(nrow(joint_density$joint_distr) > 50000 & i < n_to_update) {
+      while(nrow(joint_density$joint_distr) > 10000 & i < n_to_update) {
         i <- i + 1
+        
+        #ajouter les nouveaux joueurs de cette partie i
+        players_this_game <- unique(unlist(scores[scores[, "date"] == d, ][i, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2"), drop = FALSE]))
+        players_this_game <- players_this_game[!is.na(players_this_game)]
+        
+        for(n in players_this_game[!players_this_game %in% names(joint_density$domains)]) {
+          print(paste0("Ajout de : ", n, collapse = ""))
+          tmp <- add_player_exact(n, joint_density, joint_density_init)
+          joint_density <- tmp[[1]]
+          joint_density_init <- tmp[[2]]
+          if(nrow_before != nrow(joint_density$joint_distr)) {
+            print(paste0("nrow de la densité conjointe : ", nrow(
+              joint_density$joint_distr), collapse = ""))
+            nrow_before <- nrow(joint_density$joint_distr)
+          }
+        }
+        
         joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][i, , drop = FALSE])
         
         tmp <- simplifier_joint(joint_density, joint_density_init)
@@ -502,6 +490,23 @@ show_ranking_history_exact <- function(scores) {
           nrow_before <- nrow(joint_density$joint_distr)
         }
       }
+      
+      player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+      player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
+      
+      
+      #ajouter les nouveaux joueurs
+      for(n in player_in_ranking[!player_in_ranking %in% names(joint_density$domains)]) {
+        tmp <- add_player_exact(n, joint_density, joint_density_init)
+        joint_density <- tmp[[1]]
+        joint_density_init <- tmp[[2]]
+        if(nrow_before != nrow(joint_density$joint_distr)) {
+          print(paste0("nrow de la densité conjointe : ", nrow(
+            joint_density$joint_distr), collapse = ""))
+          nrow_before <- nrow(joint_density$joint_distr)
+        }
+      }
+      
       if(i < n_to_update) joint_density <- update_scores_exact(joint_density, scores=scores[scores[, "date"] == d, ][(i + 1):n_to_update, , drop = FALSE])
     }
     
@@ -509,6 +514,10 @@ show_ranking_history_exact <- function(scores) {
     
     ranks <- show_current_ranking(players = marginales[player_in_ranking], scores = scores, init_theta = ranks)
     for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
+    
+    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+    players_today <- players_today[!is.na(players_today)]
+    
     for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
     
     #print(show_detailed_skill_per_player(marginales[player_in_ranking]))

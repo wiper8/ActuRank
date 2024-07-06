@@ -18,7 +18,8 @@ ggplot(tmp[[2]])+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
   geom_point(aes(x=date, y=score, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
   scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), 3], decreasing = T), 2])+
-  theme_bw()
+  theme_bw()+
+  coord_cartesian(xlim = c(as.Date("2024-03-01"), as.Date(Sys.time())))
 
 sort(sapply(players, compute_credibility), decreasing = T)
 
