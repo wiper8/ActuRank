@@ -8,4 +8,7 @@ Pour mettre à jour le csv : aller dans Excel, télécharger une copie du xlsx d
 - mettre tous les hp dans un fichier de config R, incluant les distributions priori
 - faire une graphe avec des arêtes pour montré qui a joué contre qui.
 - Possiblement faire un graphique à 2 axe =, coin haut droit est 100, coin bas gauche est 0, et il y aurait des cercles.
-- Ajouter version exacte des probs de conversion pcq j'ai un bug, gab devient premier au jour 2.
+- Modifier le drift, de manières à ajouter des probs juste aux points dans le domaine et voisins au domaine p>0 du joueur, avec les probs sommées, pour pas trop ogmenter la dimensionnalité
+- L'ajout de plusieurs joueurs tard dans le processus augmente bcp la dimensionnalité et parfois
+dépasse le absolute_max_dim donc on perd beaucoup de probs.
+- Essayer de modéliser les distributions par des splines de degré 1-3 mettons. Chq personne aurait peu de params.
