@@ -1,12 +1,12 @@
 #TODO shiny app?
 #TODO se questionner si le score des gens devrait varier si les autres jouent en leur absence.
 #TODO vérifier si l'ordonnancement des parties a un impact.
-
+library(gtools)
 
 players <- list()
 
 init_distr <- function() {
-  mu1 <- qbeta(seq(0, 1, length.out = dim_len_mu), 2, 2) * 99 + 1
+  mu1 <- round(qbeta(seq(0, 1, length.out = dim_len_mu), 2, 2) * 99 + 1, 2)
   distr_mu1 <- cbind("mu"=mu1, "p"=1/dim_len_mu)
   cbind(mu=mu1, p = 1/dim_len_mu)
 }
@@ -130,15 +130,95 @@ drift <- function(distr, a = 0.03) {
 
 
 drift_exact <- function(joint_density, clusters, a = 0.03) {
+  # trouver la priori marginale
   priori <- new_priori(clusters)
+  priori <- priori[priori[, "p"] > 0, ]
   
-  # arrondir pour accélérer les calculs en faisant du ==
-  tmp <- joint_density$joint_distr
-  tmp <- tmp[, -ncol(tmp), drop = FALSE]
-  tmp <- round(tmp, 2)
-  priori[, "mu"] <- round(priori[, "mu"], 2)
+  priori_idx <- gtools::combinations(nrow(priori), ncol(joint_density$grid_id), repeats.allowed = TRUE)
+  #trouver le domaine plausible de la priori conjointe indépendante du cluster
+  priori_p <- apply(priori_idx, 1, function(idx) prod(priori[idx, "p"]))
+  priori_p_scaled <- priori_p / sum(priori_p)
   
-  priori_likely <- apply(tmp, 1, function(x) prod(priori[match(x, priori[, "mu"]), "p"]))
+  tmp <- sort(priori_p_scaled)
+  thres_pos <- max(which(cumsum(tmp) < 0.001))
+  if(length(thres_pos) != 0) {
+    keep <- order(order(priori_p_scaled)) >= thres_pos
+  } else {
+    keep <- TRUE
+  }
+  priori_idx <- priori_idx[keep, , drop = FALSE]
+  priori_p <- priori_p[keep]
+  
+  ### ajouter les rows absentes dans joint_density
+  # commencer par modifier les grid_id et domaines
+  joint_density$grid_id <- as.data.frame(
+    mapply(
+      function(x) match(x, priori[, "mu"]),
+      lapply(seq_len(ncol(joint_density$joint_distr[, -ncol(joint_density$joint_distr), drop = FALSE])), function(i) joint_density$joint_distr[, i]),
+      SIMPLIFY = FALSE
+    )
+  )
+  colnames(joint_density$grid_id) <- names(joint_density$domains)
+  
+  joint_density$domains <- lapply(joint_density$domains, function(x) priori[, "mu"])
+  
+  # maintenant ajouter les rangées manquantes
+  new_grid_id <- mapply(
+    function(idx, new_p) {
+      permut <- unique(gtools::permutations(length(idx), length(idx), v = idx, set = FALSE))
+      
+      keep <- apply(
+        permut,
+        1,
+        function(x) {
+          tmp <- mapply(
+            function(x_i, y) x_i %in% y,
+            x,
+            joint_density$grid_id
+          )
+          if (any(!tmp)) return(TRUE)
+          !any(apply(joint_density$grid_id, 1, function(y) all(x == y)))
+        })
+      list(permut[keep, , drop = FALSE], new_p)
+    }, 
+    split(priori_idx, rep(1:nrow(priori_idx), ncol(priori_idx))),
+    priori_p,
+    SIMPLIFY = FALSE
+  )
+  
+  new_p <- unlist(sapply(new_grid_id, function(ls) rep(ls[[2]], nrow(ls[[1]]))))
+  
+  new_grid_id <- do.call(rbind, sapply(new_grid_id, `[[`, 1))
+  new_grid_id <- as.data.frame(new_grid_id)
+  colnames(new_grid_id) <- colnames(joint_density$grid_id)
+  
+  new_distr <- mapply(
+    function(i, dom) {
+      dom[i]
+    },
+    lapply(1:ncol(new_grid_id), function(j) new_grid_id[, j]),
+    joint_density$domains
+  )
+  new_distr <- cbind(
+    new_distr,
+    p = new_p
+  )
+  new_distr <- as.data.frame(new_distr)
+  colnames(new_distr) <- colnames(joint_density$joint_distr)
+  
+  
+  joint_density$grid_id <- rbind(joint_density$grid_id, new_grid_id)
+  joint_density$joint_distr <- rbind(joint_density$joint_distr, cbind(
+    new_distr[, -ncol(new_distr), drop = FALSE], p = 0)
+  )
+  ###
+  
+  
+  priori_likely <- apply(
+    joint_density$joint_distr[, -ncol(joint_density$joint_distr), drop = FALSE],
+    1,
+    function(x) prod(priori[match(x, priori[, "mu"]), "p"])
+  )
   
   res <- (1 - a) * joint_density$joint_distr$p + a * priori_likely
   joint_density$joint_distr$p <- res / sum(res)
@@ -358,8 +438,8 @@ new_priori <- function(clusters) {
     c(x,
       sapply(x, function(x_i) {
         mean(sapply(marginales, function(distr) {
-          if (any(abs(distr[, "mu"] - x_i) < 0.01)) {
-            distr[abs(distr[, "mu"] - x_i) < 0.01, "p"]
+          if (any(distr[, "mu"] == x_i)) {
+            distr[distr[, "mu"] == x_i, "p"]
           } else {
             0
           }

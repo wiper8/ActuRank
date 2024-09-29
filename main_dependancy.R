@@ -21,7 +21,7 @@ source("src/update_scores.R")
 source("src/plots.R")
 source("src/recommend.R")
 
-#scores <- scores[scores$date <= as.Date("2024-05-01"), ]
+scores <- scores[scores$date <= as.Date("2024-05-05"), ]
 
 scores_stats(scores, players)
 

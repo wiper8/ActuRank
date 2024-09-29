@@ -559,7 +559,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     print(d)
     
     if(d %in% as.character(drift_dates)) {
-      clusters <- mapply(drift_exact, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
+      clusters <- mapply(drift_exact2, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
     }
     if(d %in% as.character(game_dates)) {
       n_to_update <- nrow(scores[scores[, "date"] == d, ])
@@ -613,7 +613,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           joint_density <- simplifier_joint_dependancy(
-            joint_density, seuil = 0.0005,
+            joint_density, seuil = 0.001,
             absolute_max_dim = 200000,
             min_no_simplif = 1000,
             verbose = TRUE
@@ -672,7 +672,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           joint_density <- simplifier_joint_dependancy(
-            joint_density, seuil = 0.0005,
+            joint_density, seuil = 0.001,
             absolute_max_dim = 200000,
             min_no_simplif = 1000,
             verbose = TRUE
