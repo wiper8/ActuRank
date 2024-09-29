@@ -613,7 +613,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           joint_density <- simplifier_joint_dependancy(
-            joint_density, seuil = 0.0001,
+            joint_density, seuil = 0.0005,
             absolute_max_dim = 200000,
             min_no_simplif = 1000,
             verbose = TRUE
@@ -672,7 +672,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           joint_density <- simplifier_joint_dependancy(
-            joint_density, seuil = 0.0001,
+            joint_density, seuil = 0.0005,
             absolute_max_dim = 200000,
             min_no_simplif = 1000,
             verbose = TRUE

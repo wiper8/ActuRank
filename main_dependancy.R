@@ -8,19 +8,20 @@ dataset <- "ping"
 
 if (dataset == "ping") {
   source("src/import_ping.R")
+  # retirer vieux data
+  scores <- scores[scores$date >= as.Date("2024-01-01"), ]
 } else if (dataset == "spike") {
   source("src/import_spike.R")
 } else if (dataset == "pickle") {
   source("src/import_pickle.R")
+  # retirer le double qui n'est pas implémenté, s'il y en a
+  scores <- scores[is.na(scores$joueur_A1), ]
 }
 source("src/update_scores.R")
 source("src/plots.R")
 source("src/recommend.R")
 
-# retirer vieux data
-scores <- scores[scores$date >= as.Date("2024-01-01"), ]
-
-scores <- scores[scores$date <= as.Date("2024-05-01"), ]
+#scores <- scores[scores$date <= as.Date("2024-05-01"), ]
 
 scores_stats(scores, players)
 

@@ -134,7 +134,7 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
   
   # arrondir pour accélérer les calculs en faisant du ==
   tmp <- joint_density$joint_distr
-  tmp <- tmp[, -ncol(tmp)]
+  tmp <- tmp[, -ncol(tmp), drop = FALSE]
   tmp <- round(tmp, 2)
   priori[, "mu"] <- round(priori[, "mu"], 2)
   
@@ -487,7 +487,7 @@ generate_partitions <- function(n, k, min_cluster_size = 1) {
 
 
 recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.05,
-                                 max_cluster_size = Inf, min_cluster_size = 3) {
+                                 max_cluster_size = Inf, min_cluster_size = 1) {
   if (length(joint_density$domains) == 1) return(list(joint_density))
   # faire un gros cluster et pour chq élément regarder si on peut les retirer d'une manière greedy
   combins <- generate_partitions(length(joint_density$domains), 2, min_cluster_size = min_cluster_size)
@@ -625,11 +625,11 @@ mutual_information <- function(joint_density, idx_out) {
 }
 
 
-compute_credibility <- function(distr, k = 0.1) {
+compute_credibility <- function(distr, k = 0.05) {
   e <- sum(distr[, "mu"] * distr[, "p"])
   v <- (sum(distr[, "mu"]^2 * distr[, "p"]) - e^2)
   v <- max(v, 0) # car imprécisions sur les opérations floating point
-  2 * pnorm(k * e / sqrt(v)) - 1
+  2 * pnorm(k * 50 / sqrt(v)) - 1 #2 * pnorm(k * e / sqrt(v)) - 1
 }
 
 is_exact_score_used_for_player <- function(distr, seuil = 0.7) {
