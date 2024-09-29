@@ -19,6 +19,12 @@ marginal_from_joint <- function(joint_density) {
   res
 }
 
+marginal_from_joint_dependancy <- function(clusters) {
+  unlist(lapply(clusters, function(clust) {
+    marginal_from_joint(clust)
+  }), recursive = FALSE)
+}
+
 post_marginal_per_player <- function(posteriori) {
   if(ncol(posteriori) == 3) {
     posteriori <- setDT(as.data.frame(posteriori))
@@ -600,11 +606,13 @@ update_scores <- function(players, scores) {
 update_scores_exact <- function(joint_density, scores) {
   
   posteriori <- apply(
-    apply(scores, 1, function(score) {
+    matrix(
+      apply(scores, 1, function(score) {
       #print(score)
       if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score))
       likelihood_2vs2_exact(joint_density, score)
-    }),
+    }), nrow = nrow(joint_density$joint_distr), ncol = nrow(scores)
+    ),
     1, prod
   ) * joint_density$joint_distr$p
   

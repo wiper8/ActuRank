@@ -6,7 +6,7 @@ scores <- scores_init()
 
 players <- list()
 
-data <- read.csv2("data/data.csv")
+data <- read.csv2("data/ping.csv")
 colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "score_A", "score_B", "game_len", "date")
 data <- data[, 1:9]
 data <- data[-1, ]
@@ -36,7 +36,8 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "M", "Mariève",
                             "LL", "Louis",
                             "JPL", "JPL",
-                            "AR", "AlexR"), ncol=2, byrow=T)
+                            "AR", "AlexR",
+                            "MAG", "MAG"), ncol=2, byrow=T)
 
 for(i in 1:4)
   data[, i] <- mapping_joueurs[match(data[, i], mapping_joueurs), 2]
