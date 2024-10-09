@@ -193,6 +193,11 @@ prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
   }
   
   # prob que A gagne sachant que A sert +  prob que A gagne sachant que B sert.
+  # service = état milieu (dépend du sport)
+  # win = B frappe F0 ou A frappe F3
+  # TODO enlever le 3 hardcodé et faire dépendre selon k
+  # devrait etre état milieu environ
+  
   0.5 * (M[3, 1]+ M[(k+1)+3, 2*(k+1)])
 }
 
@@ -224,14 +229,49 @@ prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
   #eigen_info <- eigen(t(M1))
   #round(Re(eigen_info$vectors %*% diag(eigen_info$values) %*% solve(eigen_info$vectors)), 1)
   
+  # 2^5 = 32 échanges durant le point
   for(i in 1:5) {
     M1 <- M1 %*% M1
     M2 <- M2 %*% M2
   }
   
-  0.25 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])+
-    0.25 * (M2[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])
+  # prob win sachant A sert + prob win sachant B sert + prob win sachant A sert et cycle2, etc.
+  # service = départ dans l'état F2
+  # win = B frappe F0 ou A frappe F3
   
+  0.125 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)])+
+    0.125 * (M2[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)])
+  
+}
+
+prob_win_point_2vs2_knowing_skills_spikeball <- function(MA1, MA2, MB1, MB2, k = 3) {
+  # on ignore les passes
+  # on supposes qu'on renvoie à n'importe quel joueur uniformément
+  # on ne tient pas en compte qu'on garde le service
+  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
+    c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+    c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  ))
+  
+  M1[1:nrow(MA1), ncol(MB1)+ncol(MB2) + 1:ncol(MA1)] <- 0.5 * MA1
+  M1[1:nrow(MA1), ncol(MB1)+ncol(MB2)+ncol(MA2) + 1:ncol(MA1)] <- 0.5 * MA1
+  M1[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + ncol(MA1) + 1:ncol(MA2)] <- 0.5 * MA2
+  M1[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + 1:ncol(MA2)] <- 0.5 * MA2
+  M1[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), ncol(MB2) + 1:ncol(MB1)] <- 0.5 * MB1
+  M1[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), 1:ncol(MB1)] <- 0.5 * MB1
+  M1[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), 1:ncol(MB2)] <- 0.5 * MB2
+  M1[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), ncol(MB1) + 1:ncol(MB2)] <- 0.5 * MB2
+  
+  #eigen_info <- eigen(t(M1))
+  #round(Re(eigen_info$vectors %*% diag(eigen_info$values) %*% solve(eigen_info$vectors)), 1)
+  
+  # 5 pour 2^5=32 coups max
+  for(i in 1:5) {
+    M1 <- M1 %*% M1
+  }
+  
+  0.25 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)] +
+           M1[3, k+1+1] + M1[k+1+3, 1] + M1[2*(k+1)+3, 4*(k+1)] + M1[3*(k+1)+3, 3*(k+1)])
 }
 
 
@@ -278,11 +318,12 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   posteriori
 }
 
-likelihood_1vs1_exact <- function(joint_density, score) {
+likelihood_1vs1_exact <- function(joint_density, score, dataset) {
   name <- unlist(score[c("joueur_A2", "joueur_B1")])
   
   MS1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
   MS2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
+  
   P_1_wins_pt <- list(
     matrix(
       apply(
@@ -319,20 +360,22 @@ likelihood_1vs1_exact <- function(joint_density, score) {
   Likelihood
 }
 
-likelihood_2vs2_exact <- function(joint_density, score) {
+likelihood_2vs2_exact <- function(joint_density, score, dataset) {
   name <- unlist(score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")])
   
   MSA1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
   MSA2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
   MSB1 <- lapply(joint_density$domains[[name[3]]] / 100, transition_matrix)
   MSB2 <- lapply(joint_density$domains[[name[4]]] / 100, transition_matrix)
+  prob_point_fun <- if (dataset == "ping") prob_win_point_2vs2_knowing_skills
+  prob_point_fun <- if (dataset == "spike" || dataset == "pickle") prob_win_point_2vs2_knowing_skills_spikeball
   
   P_A_wins_pt <- list(
     array(
       apply(
         expand.grid(1:length(MSA1), 1:length(MSA2), 1:length(MSB1), 1:length(MSB2)),
         1,
-        function(idx) prob_win_point_2vs2_knowing_skills(
+        function(idx) prob_point_fun(
           MSA1[[idx[1]]], MSA2[[idx[2]]], MSB1[[idx[3]]], MSB2[[idx[4]]])
       ),
       dim = c(length(MSA1), length(MSA2), length(MSB1), length(MSB2))
@@ -552,19 +595,21 @@ posteriori_of_game_simplified <- function(players, score) {
 }
 
 players_pairs <- function(scores) {
-  scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
+  # scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
   tmp <- apply(
     scores[, 3:4], 1, function(x) {
       names(x) <- NULL
       sort(x)
     }
   )
-  unique(
-    lapply(
-      1:ncol(tmp),
-      function(i) tmp[, i]
+  if (length(tmp) > 0) {
+    unique(
+      lapply(
+        1:ncol(tmp),
+        function(i) tmp[, i]
+      )
     )
-  )
+  } else NULL
 }
 
 update_scores <- function(players, scores) {
@@ -603,14 +648,14 @@ update_scores <- function(players, scores) {
   players
 }
 
-update_scores_exact <- function(joint_density, scores) {
+update_scores_exact <- function(joint_density, scores, dataset) {
   
   posteriori <- apply(
     matrix(
       apply(scores, 1, function(score) {
       #print(score)
-      if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score))
-      likelihood_2vs2_exact(joint_density, score)
+      if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score, dataset))
+      likelihood_2vs2_exact(joint_density, score, dataset)
     }), nrow = nrow(joint_density$joint_distr), ncol = nrow(scores)
     ),
     1, prod

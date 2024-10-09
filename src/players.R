@@ -78,9 +78,9 @@ simplifier_joint_dependancy <- function(
 ) {
   if (nrow(joint_density$joint_distr) >= min_no_simplif) {
     tmp <- sort(joint_density$joint_distr$p)
-    thres_pos <- max(which(cumsum(tmp) < seuil))
+    thres_pos <- which(cumsum(tmp) < seuil)
     if(length(thres_pos) != 0) {
-      cond_a <- order(order(joint_density$joint_distr$p)) >= thres_pos # min(thres_pos, length(joint_density$joint_distr$p) - min_no_simplif)
+      cond_a <- order(order(joint_density$joint_distr$p)) >= max(thres_pos)
     } else cond_a <- TRUE
     cond_b <- joint_density$joint_distr$p >= min(tail(tmp, absolute_max_dim))
     cond_c <- joint_density$joint_distr$p > 0
@@ -94,19 +94,20 @@ simplifier_joint_dependancy <- function(
       print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]), 4) * 100), collapse = "")
     }
     
-    if(any(!keep) & verbose) {
-      print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr), collapse = ""))
-    } else if(sum(joint_density$joint_distr$p[keep]) < 0.95) {
-      print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr), collapse = ""))
-    }
   } else {
     keep <- joint_density$joint_distr$p > 0
   }
   
-  joint_density$joint_distr <- joint_density$joint_distr[keep, ]
-  joint_density$grid_id <- joint_density$grid_id[keep, ]
+  if(any(!keep) & verbose) {
+    print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
+  } else if(sum(joint_density$joint_distr$p[keep]) < 0.95) {
+    print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
+  }
+  
+  joint_density$joint_distr <- joint_density$joint_distr[keep, , drop = FALSE]
+  joint_density$grid_id <- joint_density$grid_id[keep, , drop = FALSE]
   joint_density$grid_id <- as.data.frame(
-    lapply(joint_density$grid_id, function(col) col - min(col) + 1)
+    lapply(joint_density$grid_id, function(col) as.integer(factor(col)))
   )
   joint_density$joint_distr$p <- joint_density$joint_distr$p / sum(joint_density$joint_distr$p)
   
@@ -128,21 +129,67 @@ drift <- function(distr, a = 0.03) {
   cbind(mu=x, p=y)
 }
 
+permutations <- function(n, v) {
+  sub <- function(n, v) {
+    if (n == 1) 
+      matrix(v, 1, 1)
+    else {
+      X <- NULL
+      for (i in 1:n) X <- rbind(X, cbind(v[i], Recall(n - 1, v[-i])))
+      X
+    }
+  }
+  sub(n, v)
+}
+
+permute_unique <- function(nums) {
+  # Sort the input vector to ensure duplicates are adjacent
+  nums <- sort(nums)
+  
+  # List to store the final result
+  result <- list()
+  
+  # Backtracking function to build permutations
+  backtrack <- function(path, remaining) {
+    if (length(remaining) == 0) {
+      # Append current permutation to the result list
+      result[[length(result) + 1]] <<- path
+      return()
+    }
+    
+    for (i in seq_along(remaining)) {
+      # Skip duplicates by checking if the current element is the same as the previous one
+      if (i > 1 && remaining[i] == remaining[i - 1]) {
+        next
+      }
+      
+      # Recursively backtrack with the current element added to the path
+      backtrack(c(path, remaining[i]), remaining[-i])
+    }
+  }
+  
+  # Start the backtracking process with an empty path and the sorted input vector
+  backtrack(c(), nums)
+  
+  do.call(rbind, result)
+}
 
 drift_exact <- function(joint_density, clusters, a = 0.03) {
   # trouver la priori marginale
   priori <- new_priori(clusters)
-  priori <- priori[priori[, "p"] > 0, ]
+  priori <- priori[priori[, "p"] > 0, , drop = FALSE]
   
   priori_idx <- gtools::combinations(nrow(priori), ncol(joint_density$grid_id), repeats.allowed = TRUE)
   #trouver le domaine plausible de la priori conjointe indépendante du cluster
   priori_p <- apply(priori_idx, 1, function(idx) prod(priori[idx, "p"]))
+  # pcq on ne répète pas certaines combins, donc ne somme pas à 1
+  # ex 1-2, 2-1, 2-2 (pas un autre 2-2 manquant)
   priori_p_scaled <- priori_p / sum(priori_p)
   
   tmp <- sort(priori_p_scaled)
-  thres_pos <- max(which(cumsum(tmp) < 0.001))
+  thres_pos <- which(cumsum(tmp) < 0.1)
   if(length(thres_pos) != 0) {
-    keep <- order(order(priori_p_scaled)) >= thres_pos
+    keep <- order(order(priori_p_scaled)) >= max(thres_pos)
   } else {
     keep <- TRUE
   }
@@ -165,18 +212,16 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
   # maintenant ajouter les rangées manquantes
   new_grid_id <- mapply(
     function(idx, new_p) {
-      permut <- unique(gtools::permutations(length(idx), length(idx), v = idx, set = FALSE))
-      
-      keep <- apply(
-        permut,
+      permut <- permute_unique(idx)
+      keep <- rep(NA, nrow(permut))
+      for (i in 1:ncol(permut)) {
+        tmp <- !permut[, i] %in% joint_density$grid_id[, i]
+        keep[tmp] <- TRUE
+      }
+      keep[is.na(keep)] <- apply(
+        permut[is.na(keep), , drop = FALSE],
         1,
         function(x) {
-          tmp <- mapply(
-            function(x_i, y) x_i %in% y,
-            x,
-            joint_density$grid_id
-          )
-          if (any(!tmp)) return(TRUE)
           !any(apply(joint_density$grid_id, 1, function(y) all(x == y)))
         })
       list(permut[keep, , drop = FALSE], new_p)
@@ -187,30 +232,37 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
   )
   
   new_p <- unlist(sapply(new_grid_id, function(ls) rep(ls[[2]], nrow(ls[[1]]))))
-  
-  new_grid_id <- do.call(rbind, sapply(new_grid_id, `[[`, 1))
-  new_grid_id <- as.data.frame(new_grid_id)
-  colnames(new_grid_id) <- colnames(joint_density$grid_id)
-  
-  new_distr <- mapply(
-    function(i, dom) {
-      dom[i]
-    },
-    lapply(1:ncol(new_grid_id), function(j) new_grid_id[, j]),
-    joint_density$domains
-  )
-  new_distr <- cbind(
-    new_distr,
-    p = new_p
-  )
-  new_distr <- as.data.frame(new_distr)
-  colnames(new_distr) <- colnames(joint_density$joint_distr)
-  
-  
-  joint_density$grid_id <- rbind(joint_density$grid_id, new_grid_id)
-  joint_density$joint_distr <- rbind(joint_density$joint_distr, cbind(
-    new_distr[, -ncol(new_distr), drop = FALSE], p = 0)
-  )
+  if (length(new_p) > 0) {
+    
+    
+    new_grid_id <- do.call(rbind, sapply(new_grid_id, `[[`, 1))
+    new_grid_id <- as.data.frame(new_grid_id)
+    colnames(new_grid_id) <- colnames(joint_density$grid_id)
+    
+    new_distr <- mapply(
+      function(i, dom) {
+        dom[i]
+      },
+      lapply(1:ncol(new_grid_id), function(j) new_grid_id[, j]),
+      joint_density$domains
+    )
+    # bugfix
+    if (is.null(dim(new_distr))) {
+      new_distr <- matrix(new_distr, nrow = 1)
+    }
+    new_distr <- cbind(
+      new_distr,
+      p = new_p
+    )
+    new_distr <- as.data.frame(new_distr)
+    colnames(new_distr) <- colnames(joint_density$joint_distr)
+    
+    
+    joint_density$grid_id <- rbind(joint_density$grid_id, new_grid_id)
+    joint_density$joint_distr <- rbind(joint_density$joint_distr, cbind(
+      new_distr[, -ncol(new_distr), drop = FALSE], p = 0)
+    )
+  }
   ###
   
   
@@ -410,15 +462,17 @@ add_player_dependancy <- function(name, clusters) {
     )
     return(clusters)
   }
-  grid <- as.data.frame(new_priori(clusters))
+  priori <- new_priori(clusters)
+  priori <- priori[priori[, "p"] > 0, ]
+  grid <- as.data.frame(priori)
   
   grid_id <- data.frame(1:nrow(grid))
   colnames(grid_id) <- name
-  joint_density_init <- new_priori(clusters)[, "p"]
+  joint_density_init <- priori[, "p"]
   joint_distr <- data.frame(grid["mu"], p = joint_density_init)
   colnames(joint_distr) <- c(name, "p")
   
-  dom <- list(new_priori(clusters)[, "mu"])
+  dom <- list(priori[, "mu"])
   names(dom) <- name
   
   clusters[[length(clusters) + 1]] <- list(
@@ -520,26 +574,6 @@ join_clusters <- function(clusters, which_i) {
   )
 }
 
-joint_density <- list(
-  grid_id = data.frame(
-    Louis = c(1, 1, 2),
-    Alex = c(1, 2, 2),
-    Jean = c(1, 1, 1)
-  ),
-  joint_distr = data.frame(
-    Louis = c(10, 10, 20),
-    Alex = c(10, 20, 20),
-    Jean = c(10, 10, 10),
-    p = c(0.3, 0.45, 0.25)
-  ),
-  domains = list(
-    Louis = c(10, 20),
-    Alex = c(10, 20),
-    Jean = 10
-  ),
-  names = c("Louis", "Alex", "Jean")
-)
-
 generate_partitions <- function(n, k, min_cluster_size = 1) {
   all_partitions <- lapply(1:ceiling((n - 1) / 2), function(k) {
     if (n %% 2 == 0 & n / 2 == k) {
@@ -566,28 +600,53 @@ generate_partitions <- function(n, k, min_cluster_size = 1) {
 
 
 
-recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.05,
-                                 max_cluster_size = Inf, min_cluster_size = 1) {
-  if (length(joint_density$domains) == 1) return(list(joint_density))
+recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.03,
+                                 max_cluster_size = Inf, min_cluster_size = 1,
+                                 joint_distr_size_skip = 1000) {
+  if (
+    length(joint_density$domains) == 1 ||
+    nrow(joint_density$joint_distr) <= joint_distr_size_skip
+  ) {
+    joint_density$names <- names(joint_density$domains)
+    return(list(joint_density))
+  }
   # faire un gros cluster et pour chq élément regarder si on peut les retirer d'une manière greedy
   combins <- generate_partitions(length(joint_density$domains), 2, min_cluster_size = min_cluster_size)
-  MI <- sapply(combins, function(idx_out) 
-    mutual_information(joint_density, idx_out)
-  )
-  if (length(MI) > 0) {
+  combins <- rev(combins)
+  if (length(combins) > 0) {
+    MI <- rep(Inf, length(combins))
     
-    
-    # print(paste0("MI : ", paste0(round(MI, 3), collapse = ", ")))
-    if (min(MI) < (MI_thresh_for_indep * log(length(joint_density$domains)))) {
-      # l'exclure du gros cluster in
-      # TODO moyen d'optimiser car dédouble les calculs déjà faits dans mutual_info()
-      new_clusters <- marginal_joint_dependancy(joint_density, combins[[which.min(MI)]], format = 2)
-      return(
-        c(
-          new_clusters[2],
-          recluster_dependancy(new_clusters[[1]], MI_thresh_for_indep = MI_thresh_for_indep)
+    # faire des batch
+    n <- length(MI)
+    batch <- 10
+    for (i in seq(0, n, batch)) {
+      if (i == batch * floor(n / batch) && i < n) {
+        for (j in (i+1):n) {
+          MI[j] <- relative_mutual_information(joint_density, combins[[j]])
+        }
+      } else if (i != n) {
+        for (j in (i + 1:batch)) {
+          MI[j] <- relative_mutual_information(joint_density, combins[[j]])
+        }
+      }
+      
+      # print(paste0("MI : ", paste0(round(MI, 3), collapse = ", ")))
+      # on compare toujours une séparation entre 2 subsets, comme si on a 2 variables
+      # MI = H(X)+H(Y)-H(X,Y)
+      # max(H(X), H(Y)) <= H(X, Y) <= H(X) + H(Y)
+      # borne sup(MI) = H(X)+H(Y)-max(H(X), H(Y))
+      if (min(MI) < MI_thresh_for_indep) {
+        print(paste0(sum(MI < Inf), " / ", length(MI)))
+        # l'exclure du gros cluster in
+        # TODO moyen d'optimiser car dédouble les calculs déjà faits dans mutual_info()
+        new_clusters <- marginal_joint_dependancy(joint_density, combins[[which.min(MI)]], format = 2)
+        return(
+          c(
+            new_clusters[2],
+            recluster_dependancy(new_clusters[[1]], MI_thresh_for_indep = MI_thresh_for_indep)
+          )
         )
-      )
+      }
     }
     if (length(joint_density$domains) > max_cluster_size) {
       MI <- MI[length(joint_density$domains) - sapply(combins, length) <= max_cluster_size]
@@ -606,6 +665,7 @@ recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.05,
           )
         )
       )
+      
     }
   }
   joint_density$names <- unlist(names(joint_density$domains))
@@ -633,8 +693,11 @@ marginal_joint_dependancy <- function(joint_density, idx_out, format = 1) {
   a_out <- sapply(new_values_grid_out, paste, collapse = "-")
   b_out <- apply(new_grid_out, 1, paste, collapse = "-")
   
-  marginal_prob_in <- sapply(a_in, function(a) sum(joint_density$joint_distr$p[a == b_in]))
-  marginal_prob_out <- sapply(a_out, function(a) sum(joint_density$joint_distr$p[a == b_out]))
+  b_in <- factor(b_in, levels = a_in)
+  b_out <- factor(b_out, levels = a_out)
+  
+  marginal_prob_in <- as.vector(tapply(joint_density$joint_distr$p, b_in, sum))
+  marginal_prob_out <- as.vector(tapply(joint_density$joint_distr$p, b_out, sum))
   
   if (format == 1) {
     return(list(
@@ -682,7 +745,7 @@ marginal_joint_dependancy <- function(joint_density, idx_out, format = 1) {
   )
 }
 
-mutual_information <- function(joint_density, idx_out) {
+relative_mutual_information <- function(joint_density, idx_out) {
   tmp <- marginal_joint_dependancy(joint_density, idx_out, format = 1)
   marginal_prob_in = tmp$marginal_prob_in
   new_values_grid_in = tmp$new_values_grid_in
@@ -698,14 +761,19 @@ mutual_information <- function(joint_density, idx_out) {
   a_out <- apply(joint_density$grid_id[, idx_out, drop = FALSE], 1, paste, collapse = "-")
   b_out <- apply(new_values_grid_out, 1, paste, collapse = "-")
   
-  deno_in <- marginal_prob_in[sapply(a_in, function(a) unlist(which(a == b_in)))]
-  deno_out <- marginal_prob_out[sapply(a_out, function(a) unlist(which(a == b_out)))]
+  deno_in <- marginal_prob_in[match(a_in, b_in)]
+  deno_out <- marginal_prob_out[match(a_out, b_out)]
   
-  sum(joint_density$joint_distr$p * (log(joint_density$joint_distr$p) - log(deno_in) - log(deno_out)))
+  entropy_in <- -sum(marginal_prob_in * log(marginal_prob_in, 2))
+  entropy_out <- -sum(marginal_prob_out * log(marginal_prob_out, 2))
+  
+  mutual_info <- sum(joint_density$joint_distr$p * (log(joint_density$joint_distr$p, 2) - log(deno_in, 2) - log(deno_out, 2)))
+  res <- mutual_info / (entropy_in + entropy_out - max(entropy_in, entropy_out))
+  if (res > 1.00001) stop("Mutual information / max  > 1 shouldn't be possible")
+  res
 }
 
-
-compute_credibility <- function(distr, k = 0.05) {
+compute_credibility <- function(distr, k = 0.025) {
   e <- sum(distr[, "mu"] * distr[, "p"])
   v <- (sum(distr[, "mu"]^2 * distr[, "p"]) - e^2)
   v <- max(v, 0) # car imprécisions sur les opérations floating point

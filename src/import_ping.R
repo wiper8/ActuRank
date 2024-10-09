@@ -55,7 +55,6 @@ data[, "date"] <- as.Date(data[, "date"], tryFormats = c("%d/%m/%Y", "%Y-%m-%d")
 dates <- sort(unique(data[, "date"]))
 
 for(d in as.character(dates)) {
-  print(d)
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
   #if(include_exact_points) {
