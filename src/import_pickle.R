@@ -37,7 +37,8 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "LL", "Louis",
                             "JPL", "JPL",
                             "AR", "AlexR",
-                            "MAG", "MAG"), ncol=2, byrow=T)
+                            "MAG", "MAG",
+                            "F", "Fred"), ncol=2, byrow=T)
 
 for(i in 1:4)
   data[, i] <- mapping_joueurs[match(data[, i], mapping_joueurs), 2]
@@ -67,4 +68,3 @@ for(d in as.character(dates)) {
 
 name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
 name <- name[!is.na(name)]
-

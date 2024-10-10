@@ -2,15 +2,15 @@ dataset <- "spike"
 
 if (dataset == "ping") {
   include_exact_points <- FALSE
-  dim_len_mu <- 10
+  dim_len_mu <- 20
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 10
+  dim_len_mu <- 12
 }
 if (dataset == "pickle") {
-  include_exact_points <- FALSE
-  dim_len_mu <- 10
+  include_exact_points <- TRUE
+  dim_len_mu <- 20
 }
 
 #TODO pickeball
@@ -23,8 +23,7 @@ if (dataset == "ping") {
   source("src/import_spike.R")
 } else if (dataset == "pickle") {
   source("src/import_pickle.R")
-  # retirer Frédéric
-  scores <- scores[is.na(scores$joueur_A1), ]
+  source("src/pickle.R")
 }
 source("src/update_scores.R")
 source("src/plots.R")
@@ -34,8 +33,10 @@ scores_stats(scores, players)
 
 games_matchups(scores, players)
 set.seed(2024L)
+
 tmp <- show_ranking_history_dependancy(scores, dataset)
 players <- tmp[[1]]
+#TODO retirer Frédéric
 
 # score history
 ggplot(tmp[[2]])+
@@ -43,14 +44,14 @@ ggplot(tmp[[2]])+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
   geom_point(aes(x=date, y=score, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
   scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
-  coord_cartesian(xlim = c(min(as.Date(scores$date)), as.Date(Sys.time())))
+  coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))
 
 ggplot(tmp[[2]])+
   theme_bw()+
   geom_line(aes(x=date, y=skill, col=player), linewidth=1)+
   geom_point(aes(x=date, y=skill, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
   scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
-  coord_cartesian(xlim = c(min(as.Date(scores$date)), as.Date(Sys.time())))
+  coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))
 
 # ranking history
 ggplot(tmp[[2]])+

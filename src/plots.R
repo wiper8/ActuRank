@@ -131,7 +131,7 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   # res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
   #             ui = rbind(diag(length(players))),
   #             ci = rep(0, length(players)))
-
+  
   ui <- rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players)), contraintes)
   ci <- c(rep(0, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players), sapply(1:max(clust), function(i) c(49.5, -50.5) * sum(clust == i)))
   
@@ -149,7 +149,7 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   #moyenne 50 et min 0 et max 100
   #pourrait donner des bugs si le monde est très dispersé
   res <- constrOptim(init_theta, to_optim, grad = NULL, ui = ui, ci = ci)
-
+  
   
   #scores entre 1 et 100
   # res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
@@ -225,7 +225,7 @@ show_detailed_skill <- function(players) {
   ggplot()+
     #geom_vline(aes(xintercept = skill, col = player), data=graph_data, linewidth=2)+
     geom_segment(aes(x=mu/100, xend=mu/100, y = 0, yend = p, col = player), data = graph_data2_one_point,
-               linewidth=1, alpha=0.8)+
+                 linewidth=1, alpha=0.8)+
     geom_line(aes(x=mu/100, y=p, col = player), data = graph_data2[!graph_data2$player %in% graph_data2_one_point$player, ],
               linewidth=1, alpha=0.8)+
     xlab("Skill")+ylab("Likelihood")+
@@ -436,21 +436,22 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
   scores_players <- NULL
   marginales <- list()
   #profvis({
-    for(d in as.character(all_dates)) {
-      print(d)
-      
-      lapply(clusters, function(joint_density) {
-        if (any(is.na(joint_density$grid_id))) stop("NA dans grid_id")
-        if (any(is.na(joint_density$joint_distr))) stop("NA dans joint_distr")
-        if (any(mapply(
-          function(grid_id, dom_len) max(grid_id) > dom_len,
-          lapply(1:ncol(joint_density$grid_id), function(j) joint_density$grid_id[, j]),
-          lapply(joint_density$domains, function(dom) length(dom))
-        ))) stop("incohérence grid_id")
-      })
-      
-      if(d %in% as.character(drift_dates)) {
-        clusters <- mapply(drift_exact, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
+  for(d in as.character(all_dates)) {
+    print(d)
+    
+    lapply(clusters, function(joint_density) {
+      if (any(is.na(joint_density$grid_id))) stop("NA dans grid_id")
+      if (any(is.na(joint_density$joint_distr))) stop("NA dans joint_distr")
+      if (any(mapply(
+        function(grid_id, dom_len) max(grid_id) > dom_len,
+        lapply(1:ncol(joint_density$grid_id), function(j) joint_density$grid_id[, j]),
+        lapply(joint_density$domains, function(dom) length(dom))
+      ))) stop("incohérence grid_id")
+    })
+    
+    if(d %in% as.character(drift_dates)) {
+      clusters <- mapply(drift_exact, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
+      if (dataset == "ping") {
         clusters <- lapply(clusters, function(joint_density) {
           simplifier_joint_dependancy(
             joint_density,
@@ -461,120 +462,122 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           )
         })
       }
-      if(d %in% as.character(game_dates)) {
-        n_to_update <- nrow(scores[scores[, "date"] == d, ])
+    }
+    if(d %in% as.character(game_dates)) {
+      n_to_update <- nrow(scores[scores[, "date"] == d, ])
+      
+      # commencer avec le simple
+      # énumérer les paires de simples jouées dans la journée
+      scores_subset <- scores[scores[, "date"] == d, ]
+      scores_subset <- scores_subset[is.na(scores_subset$joueur_A1), ]
+      if (nrow(scores_subset) > 0) {
+        pairs <- mapply(function(a, b) {
+          sort(c(a, b))
+        }, scores_subset$joueur_A2, scores_subset$joueur_B1, SIMPLIFY = FALSE)
+        unique_pairs <- unique(pairs)
+        unique_pairs_game_i <- lapply(
+          unique_pairs,
+          function(x) which(sapply(pairs, function(y) isTRUE(all.equal(y, x))))
+        )
         
-        # commencer avec le simple
-        # énumérer les paires de simples jouées dans la journée
-        scores_subset <- scores[scores[, "date"] == d, ]
-        scores_subset <- scores_subset[is.na(scores_subset$joueur_A1), ]
-        if (nrow(scores_subset) > 0) {
-          pairs <- mapply(function(a, b) {
-            sort(c(a, b))
-          }, scores_subset$joueur_A2, scores_subset$joueur_B1, SIMPLIFY = FALSE)
-          unique_pairs <- unique(pairs)
-          unique_pairs_game_i <- lapply(
-            unique_pairs,
-            function(x) which(sapply(pairs, function(y) isTRUE(all.equal(y, x))))
+        # pour chq paire, update
+        for (p in seq_along(unique_pairs)) {
+          # ajouter les nouveaux joueurs de cette partie i
+          players_this_game <- unique(unlist(scores_subset[unique_pairs_game_i[[p]], c("joueur_A2", "joueur_B1"), drop = FALSE]))
+          
+          for(n in players_this_game[!players_this_game %in% unlist(sapply(clusters, `[[`, "names"))]) {
+            print(paste0("Ajout de : ", n, collapse = ""))
+            clusters <- add_player_dependancy(n, clusters)
+          }
+          
+          # créer la distribution conjointe nécessaire pour la paire
+          groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(unique_pairs[[p]] %in% noms)))
+          joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
+          joint_distr_from_clusters$names <- names(joint_distr_from_clusters$domains)
+          
+          if (isFALSE(all.equal(sum(joint_distr_from_clusters$joint_distr$p), 1))) {
+            print(d)
+            stop("Erreur de probs")
+          }
+          
+          # update la distribution
+          joint_density <- update_scores_exact(
+            joint_distr_from_clusters,
+            scores=scores_subset[unique_pairs_game_i[[p]], , drop = FALSE],
+            dataset
           )
           
-          # pour chq paire, update
-          for (p in seq_along(unique_pairs)) {
-            # ajouter les nouveaux joueurs de cette partie i
-            players_this_game <- unique(unlist(scores_subset[unique_pairs_game_i[[p]], c("joueur_A2", "joueur_B1"), drop = FALSE]))
-            
-            for(n in players_this_game[!players_this_game %in% unlist(sapply(clusters, `[[`, "names"))]) {
-              print(paste0("Ajout de : ", n, collapse = ""))
-              clusters <- add_player_dependancy(n, clusters)
-            }
-            
-            # créer la distribution conjointe nécessaire pour la paire
-            groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(unique_pairs[[p]] %in% noms)))
-            joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
-            joint_distr_from_clusters$names <- names(joint_distr_from_clusters$domains)
-            
-            if (isFALSE(all.equal(sum(joint_distr_from_clusters$joint_distr$p), 1))) {
-              print(d)
-              stop("Erreur de probs")
-            }
-            
-            # update la distribution
-            joint_density <- update_scores_exact(
-              joint_distr_from_clusters,
-              scores=scores_subset[unique_pairs_game_i[[p]], , drop = FALSE],
-              dataset
-            )
-            
-            # re-simplifier
-            joint_density <- simplifier_joint_dependancy(
-              joint_density, 
-              seuil = 1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999)),
-              absolute_max_dim = 500000,
-              min_no_simplif = 200,
-              verbose = TRUE
-            )
-            
-            # reclusterer
-            new_clusters <- recluster_dependancy(joint_density)
-            clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
-            print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
-            #print(sapply(clusters, `[`, "names"))
-          }
-        }
-        
-        # continuer avec le double
-        scores_subset <- scores[scores[, "date"] == d, ]
-        scores_subset <- scores_subset[!is.na(scores_subset$joueur_A1), ]
-        if (nrow(scores_subset) > 0) {
-          pairs <- mapply(function(a1, a2, b1, b2) {
-            sort(c(a1, a2, b1, b2))
-          }, scores_subset$joueur_A1, scores_subset$joueur_A2,
-          scores_subset$joueur_B1, scores_subset$joueur_B2, SIMPLIFY = FALSE)
-          unique_pairs <- unique(pairs)
-          unique_pairs_game_i <- lapply(
-            unique_pairs,
-            function(x) which(sapply(pairs, function(y) isTRUE(all.equal(y, x))))
+          # re-simplifier
+          joint_density <- simplifier_joint_dependancy(
+            joint_density, 
+            seuil = 1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999)),
+            absolute_max_dim = 500000,
+            min_no_simplif = 200,
+            verbose = TRUE
           )
           
-          # pour chq paire, update
-          for (p in seq_along(unique_pairs)) {
-            # ajouter les nouveaux joueurs de cette partie i
-            players_this_game <- unique(unlist(scores_subset[unique_pairs_game_i[[p]], c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2"), drop = FALSE]))
-            
-            for(n in players_this_game[!players_this_game %in% unlist(sapply(clusters, `[[`, "names"))]) {
-              print(paste0("Ajout de : ", n, collapse = ""))
-              clusters <- add_player_dependancy(n, clusters)
-            }
-            
-            # créer la distribution conjointe nécessaire pour la paire
-            groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(unique_pairs[[p]] %in% noms)))
-            joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
-            
-            # update la distribution
-            joint_density <- update_scores_exact(
-              joint_distr_from_clusters,
-              scores=scores_subset[unique_pairs_game_i[[p]], , drop = FALSE],
-              dataset
-            )
-            
-            # re-simplifier
-            joint_density <- simplifier_joint_dependancy(
-              joint_density, 
-              seuil = 1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999)),
-              absolute_max_dim = 500000,
-              min_no_simplif = 200,
-              verbose = TRUE
-            )
-            
-            # reclusterer
-            new_clusters <- recluster_dependancy(joint_density)
-            clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
-            print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
-            #print(sapply(clusters, `[`, "names"))
-          }
+          # reclusterer
+          new_clusters <- recluster_dependancy(joint_density, dataset)
+          clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
+          print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
+          #print(sapply(clusters, `[`, "names"))
         }
       }
       
+      # continuer avec le double
+      scores_subset <- scores[scores[, "date"] == d, ]
+      scores_subset <- scores_subset[!is.na(scores_subset$joueur_A1), ]
+      if (nrow(scores_subset) > 0) {
+        pairs <- mapply(function(a1, a2, b1, b2) {
+          sort(c(a1, a2, b1, b2))
+        }, scores_subset$joueur_A1, scores_subset$joueur_A2,
+        scores_subset$joueur_B1, scores_subset$joueur_B2, SIMPLIFY = FALSE)
+        unique_pairs <- unique(pairs)
+        unique_pairs_game_i <- lapply(
+          unique_pairs,
+          function(x) which(sapply(pairs, function(y) isTRUE(all.equal(y, x))))
+        )
+        
+        # pour chq paire, update
+        for (p in seq_along(unique_pairs)) {
+          # ajouter les nouveaux joueurs de cette partie i
+          players_this_game <- unique(unlist(scores_subset[unique_pairs_game_i[[p]], c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2"), drop = FALSE]))
+          
+          for(n in players_this_game[!players_this_game %in% unlist(sapply(clusters, `[[`, "names"))]) {
+            print(paste0("Ajout de : ", n, collapse = ""))
+            clusters <- add_player_dependancy(n, clusters)
+          }
+          
+          # créer la distribution conjointe nécessaire pour la paire
+          groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(unique_pairs[[p]] %in% noms)))
+          joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
+          
+          # update la distribution
+          joint_density <- update_scores_exact(
+            joint_distr_from_clusters,
+            scores=scores_subset[unique_pairs_game_i[[p]], , drop = FALSE],
+            dataset
+          )
+          
+          # re-simplifier
+          joint_density <- simplifier_joint_dependancy(
+            joint_density, 
+            seuil = 1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999)),
+            absolute_max_dim = 500000,
+            min_no_simplif = 200,
+            verbose = TRUE
+          )
+          
+          # reclusterer
+          new_clusters <- recluster_dependancy(joint_density, dataset)
+          clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
+          print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
+          #print(sapply(clusters, `[`, "names"))
+        }
+      }
+    }
+    
+    if (dataset == "ping") {
       clusters <- lapply(clusters, function(joint_density) {
         simplifier_joint_dependancy(
           joint_density, seuil = 0.0005,
@@ -583,26 +586,27 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           verbose = TRUE
         )
       })
-      
-      marginales <- marginal_from_joint_dependancy(clusters)
-      
-      scores_players <- show_current_ranking(players = marginales, scores = scores, init_theta = scores_players)
-      for(n in names(marginales)) {
-        graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- scores_players[n]
-        graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank"] <- which(names(sort(scores_players, decreasing = TRUE)) == n)
-        graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "skill"] <- sum(marginales[[n]][, "mu"] * marginales[[n]][, "p"])
-        graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank_skill"] <- which(names(sort(sapply(marginales, function(distr) sum(distr[, "mu"] * distr[, "p"])), decreasing = TRUE)) == n)
-      }
-      players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-      players_today <- players_today[!is.na(players_today)]
-      
-      for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
-      
-      #print(show_detailed_skill_per_player(marginales))
     }
+    
+    marginales <- marginal_from_joint_dependancy(clusters)
+    
+    scores_players <- show_current_ranking(players = marginales, scores = scores, init_theta = scores_players)
+    for(n in names(marginales)) {
+      graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- scores_players[n]
+      graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank"] <- which(names(sort(scores_players, decreasing = TRUE)) == n)
+      graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "skill"] <- sum(marginales[[n]][, "mu"] * marginales[[n]][, "p"])
+      graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank_skill"] <- which(names(sort(sapply(marginales, function(distr) sum(distr[, "mu"] * distr[, "p"])), decreasing = TRUE)) == n)
+    }
+    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
+    players_today <- players_today[!is.na(players_today)]
+    
+    for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
+    
+    #print(show_detailed_skill_per_player(marginales))
+  }
   #}, interval = 0.1)
   
-  list(marginales, graph_data)
+  list(marginales, graph_data, clusters)
 }
 
 show_played_against_grid <- function(players, scores) {

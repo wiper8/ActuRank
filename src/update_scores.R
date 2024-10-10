@@ -95,7 +95,7 @@ p_win_game_of <- function(p, g = 7) {
   sapply(p, function(p_i) sum(dnbinom(0:(g-1), g, p_i)))
 }
 
-p_win_game_of_not_vec <- function(p, g = 7) {
+p_win_game_of_not_vec <- function(p, g = 7, ...) {
   sum(dnbinom(0:(g-1), g, p))
 }
 
@@ -115,7 +115,7 @@ p_win_exact <- function(p, scoreA, scoreB, game_len, win) {
   )
 }
 
-p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win) {
+p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win, ...) {
   stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
   
   sans_ecart <- max(scoreA, scoreB) == game_len
@@ -367,8 +367,8 @@ likelihood_2vs2_exact <- function(joint_density, score, dataset) {
   MSA2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
   MSB1 <- lapply(joint_density$domains[[name[3]]] / 100, transition_matrix)
   MSB2 <- lapply(joint_density$domains[[name[4]]] / 100, transition_matrix)
-  prob_point_fun <- if (dataset == "ping") prob_win_point_2vs2_knowing_skills
-  prob_point_fun <- if (dataset == "spike" || dataset == "pickle") prob_win_point_2vs2_knowing_skills_spikeball
+  if (dataset == "ping") prob_point_fun <- prob_win_point_2vs2_knowing_skills
+  if (dataset == "spike" || dataset == "pickle") prob_point_fun <- prob_win_point_2vs2_knowing_skills_spikeball
   
   P_A_wins_pt <- list(
     array(
@@ -384,12 +384,20 @@ likelihood_2vs2_exact <- function(joint_density, score, dataset) {
   
   P_A_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_A_wins_pt, as.list(idx))))
   
+  if (dataset == "ping" || dataset == "spike") {
+    not_vec_fun1 <- p_win_exact_not_vec
+    not_vec_fun2 <- p_win_game_of_not_vec
+  }
+  if (dataset == "pickle") {
+    not_vec_fun1 <- p_win_exact_not_vec_pickle
+    not_vec_fun2 <- p_win_game_of_not_vec_pickle
+  }
   Likelihood_fun1 <- function(P_A_wins_pt) {
-    p_win_exact_not_vec(P_A_wins_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
+    not_vec_fun1(P_A_wins_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]), pickle_estim)
   }
   
   Likelihood_fun2 <- function(P_A_wins_pt) {
-    p <- sapply(P_A_wins_pt, p_win_game_of_not_vec, g = as.numeric(score["game_len"]))
+    p <- sapply(P_A_wins_pt, not_vec_fun2, g = as.numeric(score["game_len"]), pickle_estim)
     win <- as.numeric(score["win"])
     p * win + (1 - p) * (1 - win)
   }

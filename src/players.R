@@ -187,7 +187,7 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
   priori_p_scaled <- priori_p / sum(priori_p)
   
   tmp <- sort(priori_p_scaled)
-  thres_pos <- which(cumsum(tmp) < 0.1)
+  thres_pos <- which(cumsum(tmp) < (0.00625 * 2^min(7, ncol(joint_density$grid_id))))
   if(length(thres_pos) != 0) {
     keep <- order(order(priori_p_scaled)) >= max(thres_pos)
   } else {
@@ -222,6 +222,8 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
         permut[is.na(keep), , drop = FALSE],
         1,
         function(x) {
+          for (i in 1:ncol(permut)) 
+            if (!x[i] %in% joint_density$grid_id[, i]) return(TRUE)
           !any(apply(joint_density$grid_id, 1, function(y) all(x == y)))
         })
       list(permut[keep, , drop = FALSE], new_p)
@@ -233,7 +235,6 @@ drift_exact <- function(joint_density, clusters, a = 0.03) {
   
   new_p <- unlist(sapply(new_grid_id, function(ls) rep(ls[[2]], nrow(ls[[1]]))))
   if (length(new_p) > 0) {
-    
     
     new_grid_id <- do.call(rbind, sapply(new_grid_id, `[[`, 1))
     new_grid_id <- as.data.frame(new_grid_id)
@@ -600,25 +601,29 @@ generate_partitions <- function(n, k, min_cluster_size = 1) {
 
 
 
-recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.03,
+recluster_dependancy <- function(joint_density, dataset,
                                  max_cluster_size = Inf, min_cluster_size = 1,
-                                 joint_distr_size_skip = 1000) {
+                                 joint_distr_size_skip = 500) {
+  if (dataset == "ping") MI_thresh_for_indep <- 0.05
+  else MI_thresh_for_indep <- 0
+  
   if (
     length(joint_density$domains) == 1 ||
-    nrow(joint_density$joint_distr) <= joint_distr_size_skip
+    nrow(joint_density$joint_distr) <= joint_distr_size_skip ||
+    MI_thresh_for_indep == 0
   ) {
     joint_density$names <- names(joint_density$domains)
     return(list(joint_density))
   }
   # faire un gros cluster et pour chq élément regarder si on peut les retirer d'une manière greedy
   combins <- generate_partitions(length(joint_density$domains), 2, min_cluster_size = min_cluster_size)
-  combins <- rev(combins)
+  combins <- sample(combins)
   if (length(combins) > 0) {
     MI <- rep(Inf, length(combins))
     
     # faire des batch
     n <- length(MI)
-    batch <- 10
+    batch <- 20
     for (i in seq(0, n, batch)) {
       if (i == batch * floor(n / batch) && i < n) {
         for (j in (i+1):n) {
@@ -643,7 +648,7 @@ recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.03,
         return(
           c(
             new_clusters[2],
-            recluster_dependancy(new_clusters[[1]], MI_thresh_for_indep = MI_thresh_for_indep)
+            recluster_dependancy(new_clusters[[1]], dataset)
           )
         )
       }
@@ -661,7 +666,7 @@ recluster_dependancy <- function(joint_density, MI_thresh_for_indep = 0.03,
           new_clusters[2],
           recluster_dependancy(
             new_clusters[[1]],
-            MI_thresh_for_indep = MI_thresh_for_indep
+            dataset
           )
         )
       )
@@ -769,7 +774,21 @@ relative_mutual_information <- function(joint_density, idx_out) {
   
   mutual_info <- sum(joint_density$joint_distr$p * (log(joint_density$joint_distr$p, 2) - log(deno_in, 2) - log(deno_out, 2)))
   res <- mutual_info / (entropy_in + entropy_out - max(entropy_in, entropy_out))
-  if (res > 1.00001) stop("Mutual information / max  > 1 shouldn't be possible")
+  if (mutual_info == 0 | mutual_info < 10^-10) {
+    res <- 1
+  }
+  if (!is.numeric(res) | is.na(res)) {
+    print(mutual_info)
+    print(entropy_in)
+    print(entropy_out)
+  }
+  if (res > 1.00001) {
+    print(res)
+    print(mutual_info)
+    print(entropy_in)
+    print(entropy_out)
+    stop("Mutual information / max  > 1 shouldn't be possible")
+  }
   res
 }
 
