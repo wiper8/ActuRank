@@ -46,11 +46,11 @@ complement_credibilite <- function(players) {
   smooth_distr(matrix(c(x, y), ncol=2, dimnames = list(NULL, c("mu", "p"))), step = 5)
 }
 
-credibilise <- function(distr, players, seuil = 0.7) {
-  z <- min(1, compute_credibility(distr) / seuil)
-  complement <- complement_credibilite(players)
-  rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
-}
+# credibilise <- function(distr, players, seuil = 0.7) {
+#   z <- min(1, compute_credibility(distr) / seuil)
+#   complement <- complement_credibilite(players)
+#   rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
+# }
 
 #TODO ajouter une version exacte?
 show_current_probs <- function(players) {
@@ -464,24 +464,35 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       }
     }
     if(d %in% as.character(game_dates)) {
-      n_to_update <- nrow(scores[scores[, "date"] == d, ])
-      
       # commencer avec le simple
       # énumérer les paires de simples jouées dans la journée
       scores_subset <- scores[scores[, "date"] == d, ]
       scores_subset <- scores_subset[is.na(scores_subset$joueur_A1), ]
       if (nrow(scores_subset) > 0) {
+        marginales <- marginal_from_joint_dependancy(clusters)
+        if (length(marginales) == 0) {
+          credibl <- numeric()
+        } else credibl <- sapply(marginales, compute_credibility)
+        
         pairs <- mapply(function(a, b) {
           sort(c(a, b))
         }, scores_subset$joueur_A2, scores_subset$joueur_B1, SIMPLIFY = FALSE)
+        
+        new_players <- unique(unlist(pairs)[!unlist(pairs) %in% names(marginales)])
+        new_players_vec <- rep(0, length(new_players))
+        names(new_players_vec) <- new_players
+        credibl <- c(credibl, new_players_vec)
+        
         unique_pairs <- unique(pairs)
+        pairs_pseudo_credibl <- sapply(unique_pairs, function(noms) sum(credibl[noms]))
         unique_pairs_game_i <- lapply(
           unique_pairs,
           function(x) which(sapply(pairs, function(y) isTRUE(all.equal(y, x))))
         )
         
+        # trier en ordre d'info
         # pour chq paire, update
-        for (p in seq_along(unique_pairs)) {
+        for (p in order(pairs_pseudo_credibl, decreasing = TRUE)) {
           # ajouter les nouveaux joueurs de cette partie i
           players_this_game <- unique(unlist(scores_subset[unique_pairs_game_i[[p]], c("joueur_A2", "joueur_B1"), drop = FALSE]))
           
@@ -509,7 +520,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           joint_density <- simplifier_joint_dependancy(
-            joint_density, 
+            joint_density,
             seuil = 1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999)),
             absolute_max_dim = 500000,
             min_no_simplif = 200,
@@ -602,7 +613,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     
     for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
     
-    #print(show_detailed_skill_per_player(marginales))
+    print(show_detailed_skill_per_player(marginales))
   }
   #}, interval = 0.1)
   
