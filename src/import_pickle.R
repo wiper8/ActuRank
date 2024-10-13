@@ -1,7 +1,6 @@
 source("src/players.R")
 source("src/scores.R")
 
-
 scores <- scores_init()
 
 players <- list()
