@@ -1,24 +1,23 @@
-dataset <- "spike"
+dataset <- "ping"
 
 if (dataset == "ping") {
   include_exact_points <- FALSE
-  dim_len_mu <- 20
+  dim_len_mu <- 12
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 12
+  dim_len_mu <- 14
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
-  dim_len_mu <- 20
+  dim_len_mu <- 18
 }
-
-#TODO pickeball
 
 if (dataset == "ping") {
   source("src/import_ping.R")
   # retirer vieux data
   scores <- scores[scores$date >= as.Date("2024-01-01"), ]
+  #TODO essayer dajouter 10 wins de xav contre vic pour voir cque ca fait
 } else if (dataset == "spike") {
   source("src/import_spike.R")
 } else if (dataset == "pickle") {
