@@ -85,8 +85,9 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
   res
 }
 
+print("Loading...")
 pickle_estim <- generate_likelihood_estimates_pickle(dom_p = seq(0, 1, 0.01),
-                                            n_games = 500,
+                                            n_games = 2000,
                                             games_g = unique(as.numeric(scores$game_len)))
 
 p_win_exact_not_vec_pickle <- function(p, scoreA, scoreB, game_len, win, pickle_estim) {
@@ -98,7 +99,6 @@ p_win_exact_not_vec_pickle <- function(p, scoreA, scoreB, game_len, win, pickle_
                                            paste0(scoreA, "-", scoreB, collapse = "")]
   })
 }
-p_win_exact_not_vec_pickle(0.4435, 3, 7, 7, 0, pickle_estim)
 
 p_win_game_of_not_vec_pickle <- function(p, g, pickle_estim) {
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(g)]]))
