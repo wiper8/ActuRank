@@ -82,7 +82,8 @@ simplifier_joint_dependancy <- function(
     } else cond_a <- TRUE
     cond_b <- joint_density$joint_distr$p >= min(tail(tmp, absolute_max_dim))
     cond_c <- joint_density$joint_distr$p > 0
-    keep <- cond_a & cond_b & cond_c
+    cond_d <- order(order(tmp, decreasing = TRUE)) < min_no_simplif
+    keep <- (cond_a & cond_b | cond_d) & cond_c
     
     if(any(!keep) & verbose) {
       print(paste0("% de données conservées : ", round(mean(keep), 4) * 100), collapse = "")

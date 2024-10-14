@@ -421,26 +421,33 @@ show_played_against_grid <- function(players, scores) {
 
 simplify_all <- function(clusters, dataset) {
   lapply(clusters, function(joint_density) {
-    simplifier_joint_dependancy(
+    simplifier_core(
       joint_density,
-      seuil = if(dataset == "ping") {
-        1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999))
-      } else if (dataset == "spike") {
-        1 - max(0.9, min(0.999, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-      } else if(dataset == "pickle") {
-        1 - max(0.9, min(0.999, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-      },
-      absolute_max_dim = 500000,
-      min_no_simplif = if (dataset == "ping") {
-        200
-      } else if (dataset == "spike") {
-        1000
-      } else if (dataset == "pickle") {
-        1000
-      },
-      verbose = TRUE
+      dataset
     )
   })
+}
+
+simplifier_core <- function(joint_density, dataset) {
+  simplifier_joint_dependancy(
+    joint_density,
+    seuil = if(dataset == "ping") {
+      1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999))
+    } else if (dataset == "spike") {
+      1 - max(0.9, min(0.999, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
+    } else if(dataset == "pickle") {
+      1 - max(0.9, min(0.999, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
+    },
+    absolute_max_dim = 500000,
+    min_no_simplif = if (dataset == "ping") {
+      200
+    } else if (dataset == "spike") {
+      15000
+    } else if (dataset == "pickle") {
+      15000
+    },
+    verbose = TRUE
+  )
 }
 
 show_ranking_history_dependancy <- function(scores, dataset = "ping") {
@@ -559,25 +566,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           if (do_simplify) {
-            joint_density <- simplifier_joint_dependancy(
-              joint_density,
-              seuil = if(dataset == "ping") {
-                1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999))
-              } else if (dataset == "spike") {
-                1 - max(0.9, min(0.9995, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-              } else if(dataset == "pickle") {
-                1 - max(0.9, min(0.9995, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-              },
-              absolute_max_dim = 500000,
-              min_no_simplif = if (dataset == "ping") {
-                200
-              } else if (dataset == "spike") {
-                1000
-              } else if (dataset == "pickle") {
-                1000
-              },
-              verbose = TRUE
-            )
+            joint_density <- simplify_core(joint_density, dataset)
             do_simplify <- FALSE
           }
           
@@ -633,25 +622,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           if (do_simplify) {
-            joint_density <- simplifier_joint_dependancy(
-              joint_density, 
-              seuil = if(dataset == "ping") {
-                1 - max(0.9, min(0.999, (0.95 - 0.999)/(200000-1000) * (nrow(joint_density$joint_distr) - 1000) + 0.999))
-              } else if (dataset == "spike") {
-                1 - max(0.9, min(0.9995, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-              } else if(dataset == "pickle") {
-                1 - max(0.9, min(0.9995, (0.95 - 0.9995)/(200000-5000) * (nrow(joint_density$joint_distr) - 5000) + 0.9995))
-              },
-              absolute_max_dim = 500000,
-              min_no_simplif = if (dataset == "ping") {
-                200
-              } else if (dataset == "spike") {
-                1000
-              } else if (dataset == "pickle") {
-                1000
-              },
-              verbose = TRUE
-            )
+            joint_density <- simplify_core(joint_density, dataset)
             do_simplify <- FALSE
           }
           
@@ -668,7 +639,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       clusters <- lapply(clusters, function(joint_density) {
         simplifier_joint_dependancy(
           joint_density, seuil = 0.0005,
-          absolute_max_dim = 200000,
+          absolute_max_dim = 500000,
           min_no_simplif = 1,
           verbose = TRUE
         )
