@@ -1,8 +1,9 @@
-generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
+generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
                                                  n_games = 100,
-                                                 games_g = c(7, 11)) {
+                                                 games_g = c(7, 11),
+                                                 scores) {
   
-  
+  stopifnot(max(dom_p) <= 0.5)
   bootstrap <- function(simuls, n, dom) {
     replicate(n, {
       simuls_boot <- simuls[, sample(1:ncol(simuls), ncol(simuls), replace = TRUE)]
@@ -11,13 +12,19 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
   }
   
   res <- lapply(games_g, function(g) {
+    dom_len_max <- max(scores[scores$game_len == g, c("score_A", "score_B")])
     possible_scores <- rbind(
       matrix(
         c(0:(g-2), rep(g, g-1), rep(g, g-1), c((g-2):0)),
         ncol = 2
       ),
       matrix(
-        c((g-1):(2*g-1), (g+1):(2*g+1), (g+1):(2*g+1), (g-1):(2*g-1)),
+        c(
+          (g-1):(dom_len_max-1),
+          (g+1):(dom_len_max+1),
+          (g+1):(dom_len_max+1),
+          (g-1):(dom_len_max-1)
+        ),
         ncol = 2
       )
     )
@@ -31,6 +38,7 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
       
       p <- dom_p[i1]
       g <- games_g[i2]
+      dom_len_max <- max(scores[scores$game_len == g, c("score_A", "score_B")])
       
       simuls <- replicate(n_games, {
         scoreA <- 0
@@ -55,7 +63,12 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
           ncol = 2
         ),
         matrix(
-          c((g-1):(2*g-1), (g+1):(2*g+1), (g+1):(2*g+1), (g-1):(2*g-1)),
+          c(
+            (g-1):(dom_len_max-1),
+            (g+1):(dom_len_max+1),
+            (g+1):(dom_len_max+1),
+            (g-1):(dom_len_max-1)
+          ),
           ncol = 2
         )
       )
@@ -69,8 +82,8 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
       #  geom_point(aes(x = possible_scores[, 1], y = possible_scores[, 2], col = possible_scores[, 3]))
       
       
-      dist_boot <- bootstrap(simuls, 100, possible_scores[, 1:2])
-      dist_bound <- apply(dist_boot, 1, quantile, prob = c(0.1, 0.9))
+      # dist_boot <- bootstrap(simuls, 100, possible_scores[, 1:2])
+      # dist_bound <- apply(dist_boot, 1, quantile, prob = c(0.1, 0.9))
       
       # dist <- sapply(0:(g-1), function(x) mean(simuls[2, ] == x))
       # ggplot()+
@@ -80,28 +93,51 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 1, 0.01),
       #   geom_line(aes(x=0:(g-1), y=dist_bound[2, ]), linetype = "dashed")
       res[[i2]][i1, ] <- possible_scores[, 3]
     }
+    print(paste0(i2, "/", length(games_g), collapse = ""))
   }
   names(res) <- games_g
   res
 }
 
 print("Loading...")
-pickle_estim <- generate_likelihood_estimates_pickle(dom_p = seq(0, 1, 0.01),
-                                            n_games = 2000,
-                                            games_g = unique(as.numeric(scores$game_len)))
+pickle_estim <- generate_likelihood_estimates_pickle(
+  dom_p = seq(0, 0.5, 0.01),
+  n_games = 3000,
+  games_g = unique(as.numeric(scores$game_len)),
+  scores
+)
 
-p_win_exact_not_vec_pickle <- function(p, scoreA, scoreB, game_len, win, pickle_estim) {
+p_win_exact_not_vec_pickle <- function(
+    p, scoreA, scoreB, game_len, win, pickle_estim
+) {
   stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
   
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(game_len)]]))
   sapply(p, function(p) {
-    pickle_estim[[as.character(game_len)]][which.min(abs(p - dom_p)),
-                                           paste0(scoreA, "-", scoreB, collapse = "")]
+    # TODO pourrait arriver qu'on joue une partie sans écarts, dans ce cas,
+    # il faudrait ajouter la donnée dans le generate avec un if
+    if (p > max(dom_p)) {
+      i <- which.min(abs(p - dom_p))
+      pickle_estim[[as.character(game_len)]][
+        i,
+        paste0(scoreA, "-", scoreB, collapse = "")
+      ]
+    } else {
+      i <- which.min(abs(1-p - dom_p))
+      pickle_estim[[as.character(game_len)]][
+        i,
+        paste0(scoreB, "-", scoreA, collapse = "")
+      ]
+    }
   })
 }
 
 p_win_game_of_not_vec_pickle <- function(p, g, pickle_estim) {
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(g)]]))
   tmp <- pickle_estim[[as.character(g)]]
-  sum(tmp[which.min(abs(p - dom_p)), ])
+  if (p > max(dom_p)) {
+    1 - sum(tmp[which.min(abs(1-p - dom_p)), ])
+  } else {
+    sum(tmp[which.min(abs(p - dom_p)), ])
+  }
 }

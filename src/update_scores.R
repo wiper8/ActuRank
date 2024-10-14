@@ -115,7 +115,7 @@ p_win_exact <- function(p, scoreA, scoreB, game_len, win) {
   )
 }
 
-p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win, ...) {
+p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win, serve_for_pt, ...) {
   stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
   
   sans_ecart <- max(scoreA, scoreB) == game_len
@@ -337,12 +337,25 @@ likelihood_1vs1_exact <- function(joint_density, score, dataset) {
   #P_1_wins_pt <- list(t(sapply(1:length(MS1), function(i) sapply(1:length(MS2), function(j) prob_win_point_1vs1_knowing_skills(MS1[[i]], MS2[[j]])))))
   P_1_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_1_wins_pt, as.list(idx))))
   
+  if (dataset == "ping" || dataset == "spike") {
+    not_vec_fun1 <- p_win_exact_not_vec
+    not_vec_fun2 <- p_win_game_of_not_vec
+  }
+  if (dataset == "pickle") {
+    if (as.logical(score["serve_for_pt"])) {
+      not_vec_fun1 <- p_win_exact_not_vec_pickle
+      not_vec_fun2 <- p_win_game_of_not_vec_pickle
+    } else {
+      not_vec_fun1 <- p_win_exact_not_vec
+      not_vec_fun2 <- p_win_game_of_not_vec
+    }
+  }
   Likelihood_fun1 <- function(p_win_1_pt) {
-    p_win_exact_not_vec(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
+    not_vec_fun1(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
   }
   
   Likelihood_fun2 <- function(p_win_1_pt) {
-    p <- sapply(p_win_1_pt, p_win_game_of_not_vec, g = as.numeric(score["game_len"]))
+    p <- sapply(p_win_1_pt, not_vec_fun2, g = as.numeric(score["game_len"]))
     win <- as.numeric(score["win"])
     p * win + (1 - p) * (1 - win)
   }
@@ -389,8 +402,13 @@ likelihood_2vs2_exact <- function(joint_density, score, dataset) {
     not_vec_fun2 <- p_win_game_of_not_vec
   }
   if (dataset == "pickle") {
-    not_vec_fun1 <- p_win_exact_not_vec_pickle
-    not_vec_fun2 <- p_win_game_of_not_vec_pickle
+    if (as.logical(score["serve_for_pt"])) {
+      not_vec_fun1 <- p_win_exact_not_vec_pickle
+      not_vec_fun2 <- p_win_game_of_not_vec_pickle
+    } else {
+      not_vec_fun1 <- p_win_exact_not_vec
+      not_vec_fun2 <- p_win_game_of_not_vec
+    }
   }
   Likelihood_fun1 <- function(P_A_wins_pt) {
     not_vec_fun1(P_A_wins_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]), pickle_estim)
@@ -661,7 +679,7 @@ update_scores_exact <- function(joint_density, scores, dataset) {
   posteriori <- apply(
     matrix(
       apply(scores, 1, function(score) {
-      #print(score)
+      # print(score)
       if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score, dataset))
       likelihood_2vs2_exact(joint_density, score, dataset)
     }), nrow = nrow(joint_density$joint_distr), ncol = nrow(scores)
@@ -679,39 +697,3 @@ update_scores_exact <- function(joint_density, scores, dataset) {
   joint_density
 }
 
-update_scores_copules <- function(players, scores) {
-  
-  pairs <- sample(players_pairs(scores)) #shuffler pcq l'ordre peut avoir un certain impact
-  
-  #1vs1
-  for(pair in pairs) {
-    
-    keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
-    
-    players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-  }
-  
-  #2vs2
-  if(nrow(scores[!is.na(scores[, "joueur_A1"]), ]) > 0) {
-    
-    for(i in 1:nrow(scores[!is.na(scores[, "joueur_A1"]), ])) {
-      # print(paste0(i, " 2vs2"))
-      players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
-      
-      quatuor <- unlist(scores[!is.na(scores[, "joueur_A1"]), ][i, 2:5])
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      players[quatuor] <- mapply(simplifier_domain, players[quatuor], step = ifelse(sapply(players[quatuor], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      
-    }
-  }
-  players
-}
- 

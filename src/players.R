@@ -1,5 +1,4 @@
 #TODO shiny app?
-#TODO se questionner si le score des gens devrait varier si les autres jouent en leur absence.
 library(gtools)
 
 players <- list()

@@ -1,12 +1,12 @@
-dataset <- "ping"
+dataset <- "spike"
 
 if (dataset == "ping") {
   include_exact_points <- FALSE
-  dim_len_mu <- 12
+  dim_len_mu <- 18
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 14
+  dim_len_mu <- 18
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -24,6 +24,9 @@ if (dataset == "ping") {
   source("src/import_pickle.R")
   source("src/pickle.R")
 }
+if (!"serve_for_pt" %in% colnames(scores)) {
+  scores$serve_for_pt <- FALSE
+}
 source("src/update_scores.R")
 source("src/plots.R")
 source("src/recommend.R")
@@ -32,6 +35,8 @@ scores_stats(scores, players)
 
 games_matchups(scores, players)
 set.seed(2024L)
+
+# generate_GIF_images(scores)
 
 tmp <- show_ranking_history_dependancy(scores, dataset)
 players <- tmp[[1]]
