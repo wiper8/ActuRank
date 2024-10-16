@@ -115,21 +115,7 @@ simplifier_joint_dependancy <- function(
   joint_density
 }
 
-drift <- function(distr, a = 0.07) {
-  #distr * (1-a)^k + priori * (1 - (1-a)^k)
-  #\left(1-a\right)^{x}\cdot30\ +\ a\cdot10\cdot\frac{\left(1-\left(1-a\right)^{x}\right)}{a}
-  priori <- init_distr()
-  x <- c(priori[, "mu"], distr[, "mu"])
-  y <- c(a * priori[, "p"], (1-a) * distr[, "p"])
-  y <- y[order(x)]
-  x <- x[order(x)]
-  y <- sapply(unique(x), function(xi) sum(y[x == xi]))
-  x <- unique(x)
-  cbind(mu=x, p=y)
-}
-
-
-drift_exact <- function(joint_density, clusters, a = 0.07) {
+drift_exact <- function(joint_density, clusters, a = 0.05) {
   # trouver la priori marginale
   priori <- new_priori(clusters)
   priori <- priori[priori[, "p"] > 0, , drop = FALSE]
@@ -168,6 +154,118 @@ drift_exact <- function(joint_density, clusters, a = 0.07) {
   pasted_combins <- apply(joint_density$grid_id, 1, paste0, collapse = "-")
   new_grid_id <- mapply(
     function(idx, new_p) {
+      permut <- permute_unique(idx)
+      keep <- rep(NA, nrow(permut))
+      for (i in 1:ncol(permut)) {
+        tmp <- !permut[, i] %in% joint_density$grid_id[, i]
+        keep[tmp] <- TRUE
+      }
+      keep[is.na(keep)] <- apply(
+        permut[is.na(keep), , drop = FALSE],
+        1,
+        function(x) {
+          for (i in 1:ncol(permut))
+            if (!x[i] %in% joint_density$grid_id[, i]) return(TRUE)
+          !any(pasted_combins == paste0(x, collapse = "-"))
+        }
+      )
+      list(permut[keep, , drop = FALSE], new_p)
+    }, 
+    split(priori_idx, rep(1:nrow(priori_idx), ncol(priori_idx))),
+    priori_p,
+    SIMPLIFY = FALSE
+  )
+  
+  new_p <- unlist(sapply(new_grid_id, function(ls) rep(ls[[2]], nrow(ls[[1]]))))
+  if (length(new_p) > 0) {
+    
+    
+    new_grid_id <- do.call(rbind, sapply(new_grid_id, `[[`, 1))
+    new_grid_id <- as.data.frame(new_grid_id)
+    colnames(new_grid_id) <- colnames(joint_density$grid_id)
+    
+    new_distr <- mapply(
+      function(i, dom) {
+        dom[i]
+      },
+      lapply(1:ncol(new_grid_id), function(j) new_grid_id[, j]),
+      joint_density$domains
+    )
+    # bugfix
+    if (is.null(dim(new_distr))) {
+      new_distr <- matrix(new_distr, nrow = 1)
+    }
+    new_distr <- cbind(
+      new_distr,
+      p = new_p
+    )
+    new_distr <- as.data.frame(new_distr)
+    colnames(new_distr) <- colnames(joint_density$joint_distr)
+    
+    
+    joint_density$grid_id <- rbind(joint_density$grid_id, new_grid_id)
+    joint_density$joint_distr <- rbind(joint_density$joint_distr, cbind(
+      new_distr[, -ncol(new_distr), drop = FALSE], p = 0)
+    )
+  }
+  ###
+  
+  
+  priori_likely <- apply(
+    joint_density$joint_distr[, -ncol(joint_density$joint_distr), drop = FALSE],
+    1,
+    function(x) prod(priori[match(x, priori[, "mu"]), "p"])
+  )
+  
+  res <- (1 - a) * joint_density$joint_distr$p + a * priori_likely
+  joint_density$joint_distr$p <- res / sum(res)
+  joint_density
+}
+
+drift_exact2 <- function(joint_density, a = 0.05) {
+  # trouver la priori marginale pour chaque joueur centrée a l'espérance
+  priori <- new_priori_centered(joint_density)
+  priori <- priori[priori[, "p"] > 0, , drop = FALSE]
+  
+  # TODO trouver les nouvelles combinaisons
+  priori_idx <- gtools::combinations(nrow(priori), ncol(joint_density$grid_id), repeats.allowed = TRUE)
+  #trouver le domaine plausible de la priori conjointe indépendante du cluster
+  # TODO remplacer priori[idx, ] par le priori individuel
+  priori_p <- apply(priori_idx, 1, function(idx) prod(priori[idx, "p"]))
+  # pcq on ne répète pas certaines combins, donc ne somme pas à 1
+  # ex 1-2, 2-1, 2-2 (pas un autre 2-2 manquant)
+  priori_p_scaled <- priori_p / sum(priori_p)
+  
+  tmp <- sort(priori_p_scaled)
+  # TODO se baser sur le nrow au lieu du ncol je crois
+  thres_pos <- which(cumsum(tmp) < (0.00625 * 2^min(7, ncol(joint_density$grid_id))))
+  if(length(thres_pos) != 0) {
+    keep <- order(order(priori_p_scaled)) >= max(thres_pos)
+  } else {
+    keep <- TRUE
+  }
+  priori_idx <- priori_idx[keep, , drop = FALSE]
+  priori_p <- priori_p[keep]
+  
+  ### ajouter les rows absentes dans joint_density
+  # commencer par modifier les grid_id et domaines
+  joint_density$grid_id <- as.data.frame(
+    mapply(
+      function(x) match(x, priori[, "mu"]),
+      lapply(seq_len(ncol(joint_density$joint_distr[, -ncol(joint_density$joint_distr), drop = FALSE])), function(i) joint_density$joint_distr[, i]),
+      SIMPLIFY = FALSE
+    )
+  )
+  colnames(joint_density$grid_id) <- names(joint_density$domains)
+  
+  joint_density$domains <- lapply(joint_density$domains, function(x) priori[, "mu"])
+  
+  # maintenant ajouter les rangées manquantes
+  pasted_combins <- apply(joint_density$grid_id, 1, paste0, collapse = "-")
+  # TODO
+  new_grid_id <- mapply(
+    function(idx, new_p) {
+      # TODO
       permut <- permute_unique(idx)
       keep <- rep(NA, nrow(permut))
       for (i in 1:ncol(permut)) {
@@ -446,6 +544,39 @@ new_priori <- function(clusters) {
   
   marginales <- marginal_from_joint_dependancy(clusters)
   x <- init_distr()[, "mu"]
+  matrix(
+    c(x,
+      sapply(x, function(x_i) {
+        mean(sapply(marginales, function(distr) {
+          if (any(distr[, "mu"] == x_i)) {
+            distr[distr[, "mu"] == x_i, "p"]
+          } else {
+            0
+          }
+        }))
+      })),
+    ncol = 2,
+    dimnames = dimnames(init_distr())
+  )
+}
+
+new_priori_centered <- function(joint_density) {
+  
+  marginales <- marginal_from_joint_dependancy(list(joint_density))
+  priori <- init_distr()
+  
+  lapply(marginales, function(x) {
+    mean_mu <- sum(x[, "mu"] * x[, "p"])
+    round(min(c(abs(min(x[, "mu"]) - mean_mu)), abs(max(x[, "mu"] - mean_mu))))
+    i <- which.min(c(min(abs(x[, "mu"] - mean_mu)), max(abs(x[, "mu"] - mean_mu))))
+    if (i == 1) {
+      x
+      x[, "mu"]
+      priori[, "mu"]
+    } else {
+      
+    }
+  })
   matrix(
     c(x,
       sapply(x, function(x_i) {

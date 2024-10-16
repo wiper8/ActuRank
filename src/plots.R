@@ -52,8 +52,9 @@ complement_credibilite <- function(players) {
 #   rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
 # }
 
-#TODO ajouter une version exacte?
-show_current_probs <- function(players) {
+
+show_current_probs_exact <- function(clusters) {
+  players <- marginal_from_joint_dependancy(clusters)
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
@@ -61,30 +62,28 @@ show_current_probs <- function(players) {
   pairs <- t(combn(1:length(ranks), 2))
   #players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
   
-  players <- lapply(players, simplifier_domain)
+  # players <- lapply(players, simplifier_domain)
   
-  prob <- mapply(function(distr_S1, distr_S2) {
+  prob <- apply(pairs, 1, function(pair) {
+    groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(names(players)[pair] %in% noms)))
+    joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
+    skills <- joint_distr_from_clusters$joint_distr[names(players)[pair]]
+    S1 <- skills[[1]]
+    S2 <- skills[[2]]
+    MS1 <- lapply(S1 / 100, transition_matrix)
+    MS2 <- lapply(S2 / 100, transition_matrix)
     
-    distr_S1_S2 <- distr_F1_F2_1vs1(distr_S1, distr_S2)
-    
-    MS1 <- rep(lapply(distr_S1[, "mu"] / 100, transition_matrix), nrow(distr_S2))
-    MS2 <- rep(lapply(distr_S2[, "mu"] / 100, transition_matrix), each = nrow(distr_S1))
-    
-    
-    sum(mapply(function(MS1, MS2) prob_win_point_1vs1_knowing_skills(MS1, MS2),
-               MS1, MS2) * distr_S1_S2[, "p1"] * distr_S1_S2[, "p2"])
-  },
-  players[pairs[, 1]],#players_credibilise[pairs[, 1]],
-  players[pairs[, 2]]#players_credibilise[pairs[, 2]]
-  )
-  
+    sum(mapply(prob_win_point_1vs1_knowing_skills,
+             MS1, MS2) * joint_distr_from_clusters$joint_distr$p)
+  })
   data.frame(A=names(ranks)[pairs[, 1]], B=names(ranks)[pairs[, 2]],
              prob = round(prob, 3), prob_win_11 = round(sapply(prob, function(p) p_win_game_of(p, 11)), 3))
 }
 
-show_current_ranking <- function(players, scores, init_theta = NULL, show_credibility = FALSE) {
-  probs <- show_current_probs(players)
+show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credibility = FALSE) {
+  probs <- show_current_probs_exact(clusters)
   
+  players <- marginal_from_joint_dependancy(clusters)
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
@@ -94,8 +93,17 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   
   # Trouver les composantes fortement connexes d'un graphe
   pairings <- players_pairs(scores)
+  players_in <- as.vector(unlist(sapply(clusters, `[[`, "names")))
+  
   if (!is.null(pairings)) {
-    pairings <- pairings[sapply(pairings, function(x) all(x %in% names(players)))]
+    pairings <- pairings[
+      sapply(
+        pairings,
+        function(x) all(
+          x %in% players_in
+        )
+      )
+    ]
     
     edges <- matrix(unlist(pairings), nrow=2)
     g <- graph(edges, directed = FALSE)
@@ -149,17 +157,6 @@ show_current_ranking <- function(players, scores, init_theta = NULL, show_credib
   #moyenne 50 et min 0 et max 100
   #pourrait donner des bugs si le monde est très dispersé
   res <- constrOptim(init_theta, to_optim, grad = NULL, ui = ui, ci = ci)
-  
-  
-  #scores entre 1 et 100
-  # res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
-  #                   ui = rbind(diag(length(players)), -diag(length(players))),
-  #                   ci = c(rep(1, length(players)), rep(-100, length(players))))
-  
-  #sum(scores) = 50*n
-  # res <- constrOptim(rep(50, length(players)), to_optim, grad = NULL,
-  #             ui = rbind(diag(length(players)), -diag(length(players)), rep(1, length(players)), rep(-1, length(players))),
-  #             ci = c(rep(1, length(players)), rep(-100, length(players)), 49.5*length(players), -50.5*length(players)))
   names(res$par) <- names(players)
   
   if(sqrt(res$value) > 0.02) warning(paste0("Convergence non parfaite des scores. RMSE of probs : ", 100 * round(sqrt(res$value), 3), "%", collapse = ""))
@@ -332,62 +329,6 @@ show_distr <- function(distr) {
 }
 
 
-show_ranking_history <- function(scores) {
-  
-  name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-  name <- name[!is.na(name)]
-  
-  players <- list()
-  for(n in name) players <- add_player(n, players)
-  
-  game_dates <- as.Date(unique(scores[, "date"]))
-  game_dates <- sort(game_dates)
-  
-  drift_per_player <- lapply(name, function(nom) {
-    as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
-  })
-  
-  drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
-  all_dates <- c(game_dates, as.Date(drift_dates))
-  all_dates <- unique(all_dates)
-  all_dates <- as.Date(all_dates)
-  all_dates <- sort(all_dates)
-  
-  graph_data <- data.frame(
-    date = rep(all_dates, each = length(name)),
-    player = rep(name, length(all_dates)),
-    score = NA,
-    played = FALSE
-  )
-  
-  ranks <- NULL
-  
-  for(d in as.character(all_dates)) {
-    print(d)
-    
-    player_in_ranking <- unique(unlist(scores[scores[, "date"] <= d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-    player_in_ranking <- player_in_ranking[!is.na(player_in_ranking)]
-    players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
-    players_today <- players_today[!is.na(players_today)]
-    
-    if(d %in% as.character(drift_dates)) {
-      players[name[name %in% player_in_ranking]] <- lapply(players[name[name %in% player_in_ranking]], drift)
-    }
-    if(d %in% as.character(game_dates)) {
-      players[player_in_ranking] <- update_scores(players=players[player_in_ranking], scores=scores[scores[, "date"] == d, ])
-    }
-    
-    ranks <- show_current_ranking(players = players[player_in_ranking], scores = scores, init_theta = ranks)
-    for(n in player_in_ranking) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- ranks[n]
-    for(n in players_today) graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "played"] <- TRUE
-    
-    sapply(players, check_distr)
-    
-    print(show_detailed_skill_per_player(players[player_in_ranking]))
-  }
-  
-  list(players, graph_data)
-}
 
 show_played_against_grid <- function(players, scores) {
   res <- matrix(0,
@@ -442,9 +383,9 @@ simplifier_core <- function(joint_density, dataset) {
     min_no_simplif = if (dataset == "ping") {
       200
     } else if (dataset == "spike") {
-      15000
+      10000
     } else if (dataset == "pickle") {
-      15000
+      10000
     },
     verbose = TRUE
   )
@@ -494,7 +435,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     })
     
     if(d %in% as.character(drift_dates)) {
-      clusters <- mapply(drift_exact, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
+      clusters <- lapply(clusters, drift_exact2)
       if (dataset == "ping") {
         clusters <- simplify_all(clusters, dataset)
       }
@@ -546,7 +487,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # créer la distribution conjointe nécessaire pour la paire
           groups_to_join <- which(sapply(lapply(clusters, `[[`, "names"), function(noms) any(unique_pairs[[p]] %in% noms)))
-          if (length(groups_to_joing) > 1) {
+          if (length(groups_to_join) > 1) {
             do_simplify <- TRUE
           }
           joint_distr_from_clusters <- join_clusters(clusters, groups_to_join)
@@ -566,7 +507,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           if (do_simplify) {
-            joint_density <- simplify_core(joint_density, dataset)
+            joint_density <- simplifier_core(joint_density, dataset)
             do_simplify <- FALSE
           }
           
@@ -622,7 +563,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           
           # re-simplifier
           if (do_simplify) {
-            joint_density <- simplify_core(joint_density, dataset)
+            joint_density <- simplifier_core(joint_density, dataset)
             do_simplify <- FALSE
           }
           
@@ -648,7 +589,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     
     marginales <- marginal_from_joint_dependancy(clusters)
     
-    scores_players <- show_current_ranking(players = marginales, scores = scores, init_theta = scores_players)
+    scores_players <- show_current_ranking(clusters, scores = scores, init_theta = scores_players)
     for(n in names(marginales)) {
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- scores_players[n]
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank"] <- which(names(sort(scores_players, decreasing = TRUE)) == n)
@@ -780,7 +721,7 @@ generate_GIF_images <- function(scores, dataset = "ping") {
     )
     
     for (i in 1:24) {
-      clusters <- mapply(drift_exact, clusters, clusters = list(clusters), SIMPLIFY = FALSE)
+      clusters <- lapply(clusters, drift_exact2)
       marginales <- marginal_from_joint_dependancy(clusters)
       ggsave(
         paste0("GIF_images2/posteriori", paste0(rep("0", 5-nchar(i)), collapse = ""), i, ".png", collapse = ""),
