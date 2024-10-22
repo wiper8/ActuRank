@@ -181,10 +181,10 @@ transition_matrix <- function(skill, k = 3) {
 
 prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
   
-  M <- matrix(0, 2*nrow(MA), 2*ncol(MA), dimnames = list(
-    c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
-    c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
-  ))
+  M <- matrix(0, 2*nrow(MA), 2*ncol(MA))# , dimnames = list(
+    # c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
+    # c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
+  # ))
   M[1:nrow(MA), -1:-nrow(MA)] <- MA
   M[-1:-nrow(MA), 1:nrow(MA)] <- MB
   
@@ -204,16 +204,16 @@ prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
 prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
   
   #A1->B1->A2->B2
-  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
-    c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
-    c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
-  ))
+  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
+    # c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+    # c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  # ))
   
   #A1->B2->A2->B1
-  M2 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
-    dimnames(M1)[[1]],
-    c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
-  ))
+  M2 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
+    # dimnames(M1)[[1]],
+    # c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
+  # ))
   
   
   M1[1:nrow(MA1), ncol(MB1)+ncol(MB2) + 1:ncol(MA1)] <- MA1
@@ -351,11 +351,11 @@ likelihood_1vs1_exact <- function(joint_density, score, dataset) {
     }
   }
   Likelihood_fun1 <- function(p_win_1_pt) {
-    not_vec_fun1(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]))
+    not_vec_fun1(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]), pickle_estim)
   }
   
   Likelihood_fun2 <- function(p_win_1_pt) {
-    p <- sapply(p_win_1_pt, not_vec_fun2, g = as.numeric(score["game_len"]))
+    p <- sapply(p_win_1_pt, not_vec_fun2, g = as.numeric(score["game_len"]), pickle_estim = pickle_estim)
     win <- as.numeric(score["win"])
     p * win + (1 - p) * (1 - win)
   }
@@ -380,6 +380,7 @@ likelihood_2vs2_exact <- function(joint_density, score, dataset) {
   MSA2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
   MSB1 <- lapply(joint_density$domains[[name[3]]] / 100, transition_matrix)
   MSB2 <- lapply(joint_density$domains[[name[4]]] / 100, transition_matrix)
+  
   if (dataset == "ping") prob_point_fun <- prob_win_point_2vs2_knowing_skills
   if (dataset == "spike" || dataset == "pickle") prob_point_fun <- prob_win_point_2vs2_knowing_skills_spikeball
   
@@ -636,42 +637,6 @@ players_pairs <- function(scores) {
       )
     )
   } else NULL
-}
-
-update_scores <- function(players, scores) {
-  
-  pairs <- sample(players_pairs(scores)) #shuffler pcq l'ordre peut avoir un certain impact
-  
-  #1vs1
-  for(pair in pairs) {
-    
-    keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
-    
-    players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-  }
-  
-  #2vs2
-  if(nrow(scores[!is.na(scores[, "joueur_A1"]), ]) > 0) {
-    
-    for(i in 1:nrow(scores[!is.na(scores[, "joueur_A1"]), ])) {
-      # print(paste0(i, " 2vs2"))
-      players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
-      
-      quatuor <- unlist(scores[!is.na(scores[, "joueur_A1"]), ][i, 2:5])
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      players[quatuor] <- mapply(simplifier_domain, players[quatuor], step = ifelse(sapply(players[quatuor], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      
-    }
-  }
-  players
 }
 
 update_scores_exact <- function(joint_density, scores, dataset) {
