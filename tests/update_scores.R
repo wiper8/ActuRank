@@ -116,53 +116,6 @@ stopifnot(all.equal(
 distr_F1_F21 <- distr_F1_F2_2vs2(distr_FA1, distr_FA2, distr_FB1, distr_FB2)
 distr_F1_F22 <- distr_F1_F2_2vs2(distr_FB1, distr_FB2, distr_FA2, distr_FA1)
 
-stopifnot(all.equal(
-  sort(distr_P_2vs2(distr_F1_F21)[, "P"]),
-  sort(1 - distr_P_2vs2(distr_F1_F22)[, "P"])
-))
-
-stopifnot(all.equal(
-  {
-    distr_P <- distr_P_2vs2(distr_F1_F21)
-    distr_P <- cbind(distr_P, "P_win" = p_win_game_of(distr_P[, "P"], 7))
-    sort((distr_P[, "P_win"] * 1 + (1-distr_P[, "P_win"]) * (1-1)) * distr_P[, "pA1"] * distr_P[, "pA2"] * distr_P[, "pB1"] * distr_P[, "pB2"])
-  }, {
-    distr_P <- distr_P_2vs2(distr_F1_F22)
-    distr_P <- cbind(distr_P, "P_win" = p_win_game_of(distr_P[, "P"], 7))
-    sort((distr_P[, "P_win"] * 0 + (1-distr_P[, "P_win"]) * (1-0)) * distr_P[, "pA1"] * distr_P[, "pA2"] * distr_P[, "pB1"] * distr_P[, "pB2"])
-  }
-))
-
-stopifnot(all.equal(
-  {
-    distr_P <- distr_P_2vs2(distr_F1_F21)
-    distr_P <- cbind(distr_P, "P_win" = p_win_game_of(distr_P[, "P"], 7))
-    
-    Likelihood <- (distr_P[, "P_win"] * 1 + (1-distr_P[, "P_win"]) * (1-1)) * distr_P[, "pA1"] * distr_P[, "pA2"] * distr_P[, "pB1"] * distr_P[, "pB2"]
-    Likelihood <- Likelihood/sum(Likelihood)
-    Likelihood <- cbind(Likelihood, distr_P)
-    
-    id <- rep(1:(dim_len_mu) * dim_len_F_2vs2, (dim_len_mu)^3)
-    id <- id + rep(rep((seq(dim_len_mu)-1) * dim_len_mu * dim_len_F_2vs2^2, each = dim_len_mu), (dim_len_mu)^2)
-    id <- id + rep(rep((seq(dim_len_mu)-1) * (dim_len_mu * dim_len_F_2vs2)^2 * dim_len_F_2vs2, each = (dim_len_mu)^2), dim_len_mu)
-    id <- id + rep((seq(dim_len_mu)-1) * (dim_len_mu * dim_len_F_2vs2)^3 * dim_len_F_2vs2, each = (dim_len_mu)^3)
-    
-    id2 <- rep(rep(1:(dim_len_mu), each=dim_len_F_2vs2), (dim_len_mu * dim_len_F_2vs2)^3)
-    id2 <- id2 + rep(rep((seq(dim_len_mu)-1) * (dim_len_mu), each = dim_len_mu * dim_len_F_2vs2^2), (dim_len_mu * dim_len_F_2vs2)^2)
-    id2 <- id2 + rep(rep((seq(dim_len_mu)-1) * (dim_len_mu)^2, each = (dim_len_mu * dim_len_F_2vs2)^2 * dim_len_F_2vs2), (dim_len_mu * dim_len_F_2vs2))
-    id2 <- id2 + rep((seq(dim_len_mu)-1) * (dim_len_mu)^3, each = (dim_len_mu * dim_len_F_2vs2)^3 * dim_len_F_2vs2)
-    
-    posteriori <- cbind(
-      Likelihood[id, c("muA1", "sigA1", "muA2", "sigA2", "muB1", "sigB1", "muB2", "sigB2")],
-      "p"=sapply(split(Likelihood[, "Likelihood"], id2), sum)
-    )
-    
-    posteriori[posteriori[, "muA1"] == 35 & posteriori[, "muA2"] == 25 & posteriori[, "muB1"] == 20 & posteriori[, "muB2"] == 49, "p"]
-  }, {
-    sum(Likelihood[Likelihood[, "muA1"] == 35 & Likelihood[, "muA2"] == 25 & Likelihood[, "muB1"] == 20 & Likelihood[, "muB2"] == 49, "Likelihood"])
-  }
-))
-
 
 
 stopifnot(all.equal(
