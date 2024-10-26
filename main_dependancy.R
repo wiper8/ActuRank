@@ -1,12 +1,12 @@
-dataset <- "ping"
+dataset <- "spike"
 
 if (dataset == "ping") {
   include_exact_points <- FALSE
-  dim_len_mu <- 18
+  dim_len_mu <- 5 #15
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 17
+  dim_len_mu <- 16
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -32,6 +32,8 @@ source("src/plots.R")
 source("src/recommend.R")
 
 scores_stats(scores, players)
+nrow(scores)
+sum(scores$score_A + scores$score_B)
 
 games_matchups(scores, players)
 set.seed(2024L)
@@ -41,7 +43,6 @@ set.seed(2024L)
 tmp <- show_ranking_history_dependancy(scores, dataset)
 players <- tmp[[1]]
 clusters <- tmp[[3]]
-#TODO retirer Frédéric
 
 # score history
 ggplot(tmp[[2]])+
@@ -87,13 +88,15 @@ show_detailed_skill(players)
 
 show_detailed_skill_per_player(players)
 
+test_hyp(clusters)
+
 show_IC_skill(players)
 
 show_skill_level(players)
 
 recommend_next_game(players, names_present = NULL)
 
-show_current_probs_exact(clusters)
+show_current_probs_exact2(clusters)
 
 lapply(show_skill_level(players), transition_matrix)
 
