@@ -14,6 +14,7 @@ data <- data[data[, "joueur_B1"] != "", ]
 data$score_A <- as.numeric(data$score_A)
 data$score_B <- as.numeric(data$score_B)
 data$win <- as.numeric(data$win)
+data$game_len <- as.numeric(data$game_len)
 
 mapping_joueurs <- matrix(c("W", "Will",
                             "É", "Éti",

@@ -6,14 +6,15 @@ scores <- scores_init()
 players <- list()
 
 data <- read.csv2("data/pickle.csv")
-colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "score_A", "score_B", "game_len", "date", "serve_fot_pt")
+colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "score_A", "score_B", "game_len", "date", "serve_for_pt")
 data <- data[, 1:10]
 data <- data[-1, ]
 data <- data[data[, "joueur_B1"] != "", ]
 data$score_A <- as.numeric(data$score_A)
 data$score_B <- as.numeric(data$score_B)
 data$win <- as.numeric(data$win)
-data$serve_fot_pt <- data$serve_fot_pt == "2"
+data$game_len <- as.numeric(data$game_len)
+data$serve_for_pt <- data$serve_for_pt == "2"
 
 mapping_joueurs <- matrix(c("W", "Will",
                             "É", "Éti",
@@ -60,7 +61,7 @@ for(d in as.character(dates)) {
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
   scores <- add_scores(
-    subdata[, 1:8],
+    subdata[, c(1:8, 10)],
     scores,
     date = d
   )
