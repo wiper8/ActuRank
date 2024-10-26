@@ -43,9 +43,12 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
       simuls <- replicate(n_games, {
         scoreA <- 0
         scoreB <- 0
-        serveA <- sample(c(TRUE, FALSE), 1)
+        
+        serveA <- sample(c(TRUE, FALSE), 1, prob = c(p, 1 - p))
+        # supposons que le premier point sert à déterminer qui commence avec le service 
+        
         while(max(scoreA, scoreB) < g | abs(scoreA - scoreB) < 2) {
-          win <- (1:2)[sample.int(2, 1, FALSE, c(p, 1-p))]
+          win <- (1:2)[sample.int(2, 1, FALSE, c(p, 1 - p))]
           if (win == 1) {
             if (serveA) scoreA <- scoreA + 1
             else serveA <- TRUE
@@ -102,7 +105,7 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
 print("Loading...")
 pickle_estim <- generate_likelihood_estimates_pickle(
   dom_p = seq(0, 0.5, 0.01),
-  n_games = 3000,
+  n_games = 5000,
   games_g = unique(as.numeric(scores$game_len)),
   scores
 )
@@ -116,7 +119,7 @@ p_win_exact_not_vec_pickle <- function(
   sapply(p, function(p) {
     # TODO pourrait arriver qu'on joue une partie sans écarts, dans ce cas,
     # il faudrait ajouter la donnée dans le generate avec un if
-    if (p > max(dom_p)) {
+    if (p <= max(dom_p)) {
       i <- which.min(abs(p - dom_p))
       pickle_estim[[as.character(game_len)]][
         i,
@@ -135,9 +138,12 @@ p_win_exact_not_vec_pickle <- function(
 p_win_game_of_not_vec_pickle <- function(p, g, pickle_estim) {
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(g)]]))
   tmp <- pickle_estim[[as.character(g)]]
+  
+  col_where_A_wins <- c(g:(g + g - 2), (ncol(tmp) - ((ncol(tmp) - (g-1) * 2) / 2)):ncol(tmp))
+  
   if (p > max(dom_p)) {
-    1 - sum(tmp[which.min(abs(1-p - dom_p)), ])
+    1 - sum(tmp[which.min(abs(1-p - dom_p)), col_where_A_wins])
   } else {
-    sum(tmp[which.min(abs(p - dom_p)), ])
+    sum(tmp[which.min(abs(p - dom_p)), col_where_A_wins])
   }
 }
