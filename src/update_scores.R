@@ -155,23 +155,7 @@ stopifnot(abs(p_win_exact(0.6, 3, 5, 3, 0) - 0.6^2*0.4^2*6*0.6*0.4*2*0.4^2) < 0.
 stopifnot(abs(p_win_exact(0.6, 1, 4, 4, 0) - 0.6*0.4^4*4) < 0.00001)
 
 
-distr_P_1vs1 <- function(distr_F1_F2) {
-  cbind(
-    distr_F1_F2,
-    "P" = distr_F1_F2[, "F1"] / (distr_F1_F2[, "F1"] + distr_F1_F2[, "F2"])
-  )
-}
-
-#TODO réfléchir a si c'est vraiment le calcul que je veux
-#présentement c'est l'équivalent à dire chq point sont en 1vs1, mais on alternes les possibilitées
-distr_P_2vs2 <- function(distr_F1_F2) {
-  cbind(distr_F1_F2, 
-        "P" = (distr_F1_F2[, "FA1"] / (distr_F1_F2[, "FA1"] + distr_F1_F2[, "FB1"]) + distr_F1_F2[, "FA2"] / (distr_F1_F2[, "FA2"] + distr_F1_F2[, "FB1"]) +
-     distr_F1_F2[, "FA1"] / (distr_F1_F2[, "FA1"] + distr_F1_F2[, "FB2"]) + distr_F1_F2[, "FA2"] / (distr_F1_F2[, "FA2"] + distr_F1_F2[, "FB2"])) / 4
-  )
-}
-
-transition_matrix <- function(skill, k = 3) {
+transition_matrix <- function(skill, k = 4) {
   P <- matrix(NA, nrow = k+1, ncol = k+1, dimnames = list(paste0("reçu F", 0:k), paste0("frappé F", 0:k)))
   P[-1, ] <- t(sapply(1:k, function(ki) dbinom(0:k, k, skill * ((1 - ki) / (k - 1) + 1))))
   P[1, k+1] <- 1
@@ -179,11 +163,11 @@ transition_matrix <- function(skill, k = 3) {
   P
 }
 
-prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
+prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 4) {
   
-  M <- matrix(0, 2*nrow(MA), 2*ncol(MA))# , dimnames = list(
-    # c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
-    # c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
+  M <- matrix(0, 2*nrow(MA), 2*ncol(MA))#, dimnames = list(
+  # c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
+  # c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
   # ))
   M[1:nrow(MA), -1:-nrow(MA)] <- MA
   M[-1:-nrow(MA), 1:nrow(MA)] <- MB
@@ -192,27 +176,25 @@ prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
     M <- M %*% M
   }
   
-  # prob que A gagne sachant que A sert +  prob que A gagne sachant que B sert.
+  # prob que A gagne sachant que A sert + prob que A gagne sachant que B sert.
   # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
   # win = B frappe F0 ou A frappe F3
-  # TODO enlever le 3 hardcodé et faire dépendre selon k
-  # devrait etre état milieu environ
-  
-  0.5 * (M[3, 1]+ M[(k+1)+3, 2*(k+1)])
+  0.5 * (M[mid_k, 1]+ M[(k+1)+mid_k, 2*(k+1)])
 }
 
-prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
+prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 4) {
   
   #A1->B1->A2->B2
   M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
-    # c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
-    # c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  # c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+  # c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
   # ))
   
   #A1->B2->A2->B1
   M2 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
-    # dimnames(M1)[[1]],
-    # c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
+  # dimnames(M1)[[1]],
+  # c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
   # ))
   
   
@@ -236,15 +218,17 @@ prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
   }
   
   # prob win sachant A sert + prob win sachant B sert + prob win sachant A sert et cycle2, etc.
-  # service = départ dans l'état F2
+  # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
+  
   # win = B frappe F0 ou A frappe F3
   
-  0.125 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)])+
-    0.125 * (M2[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)])
+  0.125 * (M1[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)])+
+    0.125 * (M2[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)])
   
 }
 
-prob_win_point_2vs2_knowing_skills_spikeball <- function(MA1, MA2, MB1, MB2, k = 3) {
+prob_win_point_2vs2_knowing_skills_spikeball <- function(MA1, MA2, MB1, MB2, k = 4) {
   # on ignore les passes
   # on supposes qu'on renvoie à n'importe quel joueur uniformément
   # on ne tient pas en compte qu'on garde le service
@@ -270,8 +254,11 @@ prob_win_point_2vs2_knowing_skills_spikeball <- function(MA1, MA2, MB1, MB2, k =
     M1 <- M1 %*% M1
   }
   
-  0.25 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 3*(k+1)] + M1[3*(k+1)+3, 4*(k+1)] +
-           M1[3, k+1+1] + M1[k+1+3, 1] + M1[2*(k+1)+3, 4*(k+1)] + M1[3*(k+1)+3, 3*(k+1)])
+  # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
+  
+  0.25 * (M1[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)] +
+            M1[mid_k, k+1+1] + M1[k+1+mid_k, 1] + M1[2*(k+1)+mid_k, 4*(k+1)] + M1[3*(k+1)+mid_k, 3*(k+1)])
 }
 
 
@@ -654,10 +641,6 @@ update_scores_exact <- function(joint_density, scores, dataset) {
   
   posteriori <- posteriori / sum(posteriori)
   
-  #players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-  
-  #if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-
   joint_density$joint_distr$p <- posteriori
   joint_density
 }
