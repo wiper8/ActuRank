@@ -1,10 +1,29 @@
 library(data.table)
 
 calculate_skill <- function(distr_mu, players) {
-  distr_mu <- credibilise(distr_mu, players)
+  #distr_mu <- credibilise(distr_mu, players)
   round(sum(distr_mu[, "mu"] * distr_mu[, "p"]), 1) / 100
 }
 
+marginal_from_joint <- function(joint_density) {
+  res <- lapply(names(joint_density$grid_id), function(nom) {
+    idx_unique <- 1:length(joint_density$domains[[nom]])
+    mu_unique <- joint_density$domains[[nom]]
+    matrix(
+      c(mu_unique,
+        sapply(idx_unique, function(mu_idx) sum(joint_density$joint_distr[joint_density$grid_id[[nom]] == mu_idx, "p"]))
+      ), ncol = 2, dimnames = list(NULL, c("mu", "p"))
+    )
+  })
+  names(res) <- names(joint_density$grid_id)
+  res
+}
+
+marginal_from_joint_dependancy <- function(clusters) {
+  unlist(lapply(clusters, function(clust) {
+    marginal_from_joint(clust)
+  }), recursive = FALSE)
+}
 
 post_marginal_per_player <- function(posteriori) {
   if(ncol(posteriori) == 3) {
@@ -40,7 +59,7 @@ post_marginal_per_player <- function(posteriori) {
 distr_F1_F2_1vs1 <- function(distr_F1, distr_F2) {
   
   tmp <- faster_expand.grid(1:nrow(distr_F1), 1:nrow(distr_F2))
-  distr_F1_F2 <- cbind(distr_F1[tmp[, 1], ], distr_F2[tmp[, 2], ])
+  distr_F1_F2 <- cbind(distr_F1[tmp[, 1], , drop = FALSE], distr_F2[tmp[, 2], , drop = FALSE])
   colnames(distr_F1_F2) <- c(t(sapply(colnames(distr_F1), function(x) paste0(x, c("1", "2")))))
   distr_F1_F2
 }
@@ -76,7 +95,7 @@ p_win_game_of <- function(p, g = 7) {
   sapply(p, function(p_i) sum(dnbinom(0:(g-1), g, p_i)))
 }
 
-p_win_game_of_not_vec <- function(p, g = 7) {
+p_win_game_of_not_vec <- function(p, g = 7, ...) {
   sum(dnbinom(0:(g-1), g, p))
 }
 
@@ -94,6 +113,15 @@ p_win_exact <- function(p, scoreA, scoreB, game_len, win) {
     dnbinom(scoreB, scoreA, p) * win + dnbinom(scoreA, scoreB, 1 - p) * (1 - win),
     p_win_exact_ecart(p, scoreA, scoreB, game_len)
   )
+}
+
+p_win_exact_not_vec <- function(p, scoreA, scoreB, game_len, win, serve_for_pt, ...) {
+  stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
+  
+  sans_ecart <- max(scoreA, scoreB) == game_len
+  
+  if(sans_ecart) return(dnbinom(scoreB, scoreA, p) * win + dnbinom(scoreA, scoreB, 1 - p) * (1 - win))
+  p_win_exact_ecart(p, scoreA, scoreB, game_len)
 }
 
 
@@ -127,23 +155,7 @@ stopifnot(abs(p_win_exact(0.6, 3, 5, 3, 0) - 0.6^2*0.4^2*6*0.6*0.4*2*0.4^2) < 0.
 stopifnot(abs(p_win_exact(0.6, 1, 4, 4, 0) - 0.6*0.4^4*4) < 0.00001)
 
 
-distr_P_1vs1 <- function(distr_F1_F2) {
-  cbind(
-    distr_F1_F2,
-    "P" = distr_F1_F2[, "F1"] / (distr_F1_F2[, "F1"] + distr_F1_F2[, "F2"])
-  )
-}
-
-#TODO réfléchir a si c'est vraiment le calcul que je veux
-#présentement c'est l'équivalent à dire chq point sont en 1vs1, mais on alternes les possibilitées
-distr_P_2vs2 <- function(distr_F1_F2) {
-  cbind(distr_F1_F2, 
-        "P" = (distr_F1_F2[, "FA1"] / (distr_F1_F2[, "FA1"] + distr_F1_F2[, "FB1"]) + distr_F1_F2[, "FA2"] / (distr_F1_F2[, "FA2"] + distr_F1_F2[, "FB1"]) +
-     distr_F1_F2[, "FA1"] / (distr_F1_F2[, "FA1"] + distr_F1_F2[, "FB2"]) + distr_F1_F2[, "FA2"] / (distr_F1_F2[, "FA2"] + distr_F1_F2[, "FB2"])) / 4
-  )
-}
-
-transition_matrix <- function(skill, k = 3) {
+transition_matrix <- function(skill, k = 4) {
   P <- matrix(NA, nrow = k+1, ncol = k+1, dimnames = list(paste0("reçu F", 0:k), paste0("frappé F", 0:k)))
   P[-1, ] <- t(sapply(1:k, function(ki) dbinom(0:k, k, skill * ((1 - ki) / (k - 1) + 1))))
   P[1, k+1] <- 1
@@ -151,12 +163,12 @@ transition_matrix <- function(skill, k = 3) {
   P
 }
 
-prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
+prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 4) {
   
-  M <- matrix(0, 2*nrow(MA), 2*ncol(MA), dimnames = list(
-    c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
-    c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
-  ))
+  M <- matrix(0, 2*nrow(MA), 2*ncol(MA))#, dimnames = list(
+  # c(paste0("A ", rownames(MA)), paste0("B ", rownames(MB))),
+  # c(paste0("B ", colnames(MA)), paste0("A ", colnames(MB)))
+  # ))
   M[1:nrow(MA), -1:-nrow(MA)] <- MA
   M[-1:-nrow(MA), 1:nrow(MA)] <- MB
   
@@ -164,23 +176,26 @@ prob_win_point_1vs1_knowing_skills <- function(MA, MB, k = 3) {
     M <- M %*% M
   }
   
-  # prob que A gagne sachant que A sert +  prob que A gagne sachant que B sert.
-  0.5 * (M[3, 1]+ M[(k+1)+3, 2*(k+1)])
+  # prob que A gagne sachant que A sert + prob que A gagne sachant que B sert.
+  # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
+  # win = B frappe F0 ou A frappe F3
+  0.5 * (M[mid_k, 1]+ M[(k+1)+mid_k, 2*(k+1)])
 }
 
-prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
+prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 4) {
   
   #A1->B1->A2->B2
-  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
-    c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
-    c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
-  ))
+  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
+  # c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+  # c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  # ))
   
   #A1->B2->A2->B1
-  M2 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
-    dimnames(M1)[[1]],
-    c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
-  ))
+  M2 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1))# , dimnames = list(
+  # dimnames(M1)[[1]],
+  # c(paste0("B1 ", colnames(MB1)), paste0("B2 ", colnames(MB2)), paste0("A2 ", colnames(MA1)), paste0("A1 ", colnames(MA1)))
+  # ))
   
   
   M1[1:nrow(MA1), ncol(MB1)+ncol(MB2) + 1:ncol(MA1)] <- MA1
@@ -196,14 +211,54 @@ prob_win_point_2vs2_knowing_skills <- function(MA1, MA2, MB1, MB2, k = 3) {
   #eigen_info <- eigen(t(M1))
   #round(Re(eigen_info$vectors %*% diag(eigen_info$values) %*% solve(eigen_info$vectors)), 1)
   
+  # 2^5 = 32 échanges durant le point
   for(i in 1:5) {
     M1 <- M1 %*% M1
     M2 <- M2 %*% M2
   }
   
-  0.25 * (M1[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])+
-    0.25 * (M2[3, 1] + M1[k+1+3, k+1+1] + M1[2*(k+1)+3, 2*(k+1)+1] + M1[3*(k+1)+3, 3*(k+1)+1])
+  # prob win sachant A sert + prob win sachant B sert + prob win sachant A sert et cycle2, etc.
+  # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
   
+  # win = B frappe F0 ou A frappe F3
+  
+  0.125 * (M1[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)])+
+    0.125 * (M2[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)])
+  
+}
+
+prob_win_point_2vs2_knowing_skills_spikeball <- function(MA1, MA2, MB1, MB2, k = 4) {
+  # on ignore les passes
+  # on supposes qu'on renvoie à n'importe quel joueur uniformément
+  # on ne tient pas en compte qu'on garde le service
+  M1 <- matrix(0, 4*nrow(MA1), 4*ncol(MA1), dimnames = list(
+    c(paste0("A1 ", rownames(MA1)), paste0("A2 ", rownames(MA2)), paste0("B1 ", rownames(MB1)), paste0("B2 ", rownames(MB2))),
+    c(paste0("B2 ", colnames(MB1)), paste0("B1 ", colnames(MB2)), paste0("A1 ", colnames(MA1)), paste0("A2 ", colnames(MA1)))
+  ))
+  
+  M1[1:nrow(MA1), ncol(MB1)+ncol(MB2) + 1:ncol(MA1)] <- 0.5 * MA1
+  M1[1:nrow(MA1), ncol(MB1)+ncol(MB2)+ncol(MA2) + 1:ncol(MA1)] <- 0.5 * MA1
+  M1[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + ncol(MA1) + 1:ncol(MA2)] <- 0.5 * MA2
+  M1[nrow(MA1) + 1:nrow(MA2), ncol(MB1)+ncol(MB2) + 1:ncol(MA2)] <- 0.5 * MA2
+  M1[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), ncol(MB2) + 1:ncol(MB1)] <- 0.5 * MB1
+  M1[nrow(MA1) + nrow(MA2) + 1:nrow(MB1), 1:ncol(MB1)] <- 0.5 * MB1
+  M1[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), 1:ncol(MB2)] <- 0.5 * MB2
+  M1[nrow(MA1) + nrow(MA2) + nrow(MB2) + 1:nrow(MB2), ncol(MB1) + 1:ncol(MB2)] <- 0.5 * MB2
+  
+  #eigen_info <- eigen(t(M1))
+  #round(Re(eigen_info$vectors %*% diag(eigen_info$values) %*% solve(eigen_info$vectors)), 1)
+  
+  # 5 pour 2^5=32 coups max
+  for(i in 1:5) {
+    M1 <- M1 %*% M1
+  }
+  
+  # service = état milieu (dépend du sport)
+  mid_k <- 1 + ceiling(k/2)
+  
+  0.25 * (M1[mid_k, 1] + M1[k+1+mid_k, k+1+1] + M1[2*(k+1)+mid_k, 3*(k+1)] + M1[3*(k+1)+mid_k, 4*(k+1)] +
+            M1[mid_k, k+1+1] + M1[k+1+mid_k, 1] + M1[2*(k+1)+mid_k, 4*(k+1)] + M1[3*(k+1)+mid_k, 3*(k+1)])
 }
 
 
@@ -248,6 +303,122 @@ posteriori_1vs1_vectorized <- function(distr_S1, distr_S2, game_len, win, date, 
   )
   
   posteriori
+}
+
+likelihood_1vs1_exact <- function(joint_density, score, dataset) {
+  name <- unlist(score[c("joueur_A2", "joueur_B1")])
+  
+  MS1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
+  MS2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
+  
+  P_1_wins_pt <- list(
+    matrix(
+      apply(
+        expand.grid(1:length(MS1), 1:length(MS2)),
+        1,
+        function(idx) prob_win_point_1vs1_knowing_skills(MS1[[idx[1]]], MS2[[idx[2]]])
+      ),
+      nrow=length(MS1)
+    )
+  )
+  #P_1_wins_pt <- list(t(sapply(1:length(MS1), function(i) sapply(1:length(MS2), function(j) prob_win_point_1vs1_knowing_skills(MS1[[i]], MS2[[j]])))))
+  P_1_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_1_wins_pt, as.list(idx))))
+  
+  if (dataset == "ping" || dataset == "spike") {
+    not_vec_fun1 <- p_win_exact_not_vec
+    not_vec_fun2 <- p_win_game_of_not_vec
+  }
+  if (dataset == "pickle") {
+    if (as.logical(score["serve_for_pt"])) {
+      not_vec_fun1 <- p_win_exact_not_vec_pickle
+      not_vec_fun2 <- p_win_game_of_not_vec_pickle
+    } else {
+      not_vec_fun1 <- p_win_exact_not_vec
+      not_vec_fun2 <- p_win_game_of_not_vec
+    }
+  }
+  Likelihood_fun1 <- function(p_win_1_pt) {
+    not_vec_fun1(p_win_1_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]), pickle_estim)
+  }
+  
+  Likelihood_fun2 <- function(p_win_1_pt) {
+    p <- sapply(p_win_1_pt, not_vec_fun2, g = as.numeric(score["game_len"]), pickle_estim = pickle_estim)
+    win <- as.numeric(score["win"])
+    p * win + (1 - p) * (1 - win)
+  }
+  
+  marginales <- marginal_from_joint(joint_density)
+  
+  
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+    Likelihood <- Likelihood_fun1(P_1_wins_pt)
+  } else {
+    Likelihood <- Likelihood_fun2(P_1_wins_pt)
+  }
+  
+  Likelihood
+}
+
+likelihood_2vs2_exact <- function(joint_density, score, dataset) {
+  name <- unlist(score[c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")])
+  
+  MSA1 <- lapply(joint_density$domains[[name[1]]] / 100, transition_matrix)
+  MSA2 <- lapply(joint_density$domains[[name[2]]] / 100, transition_matrix)
+  MSB1 <- lapply(joint_density$domains[[name[3]]] / 100, transition_matrix)
+  MSB2 <- lapply(joint_density$domains[[name[4]]] / 100, transition_matrix)
+  
+  if (dataset == "ping") prob_point_fun <- prob_win_point_2vs2_knowing_skills
+  if (dataset == "spike" || dataset == "pickle") prob_point_fun <- prob_win_point_2vs2_knowing_skills_spikeball
+  
+  P_A_wins_pt <- list(
+    array(
+      apply(
+        expand.grid(1:length(MSA1), 1:length(MSA2), 1:length(MSB1), 1:length(MSB2)),
+        1,
+        function(idx) prob_point_fun(
+          MSA1[[idx[1]]], MSA2[[idx[2]]], MSB1[[idx[3]]], MSB2[[idx[4]]])
+      ),
+      dim = c(length(MSA1), length(MSA2), length(MSB1), length(MSB2))
+    )
+  )
+  
+  P_A_wins_pt <- apply(joint_density$grid_id[name], 1, function(idx) do.call(`[`, c(P_A_wins_pt, as.list(idx))))
+  
+  if (dataset == "ping" || dataset == "spike") {
+    not_vec_fun1 <- p_win_exact_not_vec
+    not_vec_fun2 <- p_win_game_of_not_vec
+  }
+  if (dataset == "pickle") {
+    if (as.logical(score["serve_for_pt"])) {
+      not_vec_fun1 <- p_win_exact_not_vec_pickle
+      not_vec_fun2 <- p_win_game_of_not_vec_pickle
+    } else {
+      not_vec_fun1 <- p_win_exact_not_vec
+      not_vec_fun2 <- p_win_game_of_not_vec
+    }
+  }
+  Likelihood_fun1 <- function(P_A_wins_pt) {
+    not_vec_fun1(P_A_wins_pt, as.numeric(score["score_A"]), as.numeric(score["score_B"]), as.numeric(score["game_len"]), as.numeric(score["win"]), pickle_estim)
+  }
+  
+  Likelihood_fun2 <- function(P_A_wins_pt) {
+    p <- sapply(P_A_wins_pt, not_vec_fun2, g = as.numeric(score["game_len"]), pickle_estim)
+    win <- as.numeric(score["win"])
+    p * win + (1 - p) * (1 - win)
+  }
+  
+  marginales <- marginal_from_joint(joint_density)
+  
+  
+  #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
+  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+    Likelihood <- Likelihood_fun1(P_A_wins_pt)
+  } else {
+    Likelihood <- Likelihood_fun2(P_A_wins_pt)
+  }
+  
+  Likelihood
 }
 
 posteriori_1vs1 <- function(distr_S1, distr_S2, game_len, win, date, scoreA, scoreB, name) {
@@ -438,56 +609,39 @@ posteriori_of_game_simplified <- function(players, score) {
 }
 
 players_pairs <- function(scores) {
-  scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
+  # scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
   tmp <- apply(
     scores[, 3:4], 1, function(x) {
       names(x) <- NULL
       sort(x)
     }
   )
-  unique(
-    lapply(
-      1:ncol(tmp),
-      function(i) tmp[, i]
+  if (length(tmp) > 0) {
+    unique(
+      lapply(
+        1:ncol(tmp),
+        function(i) tmp[, i]
+      )
     )
-  )
+  } else NULL
 }
 
-update_scores <- function(players, scores) {
+update_scores_exact <- function(joint_density, scores, dataset) {
   
-  pairs <- sample(players_pairs(scores)) #shuffler pcq l'ordre peut avoir un certain impact
+  posteriori <- apply(
+    matrix(
+      apply(scores, 1, function(score) {
+      # print(score)
+      if(is.na(score["joueur_A1"])) return(likelihood_1vs1_exact(joint_density, score, dataset))
+      likelihood_2vs2_exact(joint_density, score, dataset)
+    }), nrow = nrow(joint_density$joint_distr), ncol = nrow(scores)
+    ),
+    1, prod
+  ) * joint_density$joint_distr$p
   
-  #1vs1
-  for(pair in pairs) {
-    
-    keep <- apply(scores[is.na(scores[, "joueur_A1"]), 3:4], 1, function(x) all(sort(x) == pair))
-    
-    players[pair] <- posteriori_of_game_simplified_vectorized(players=players[pair], scores=scores[is.na(scores[, "joueur_A1"]), ][keep, ])
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-    players[pair] <- mapply(simplifier_domain, players[pair], step = ifelse(sapply(players[pair], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-    
-    if(max(sapply(players[pair], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-  }
+  posteriori <- posteriori / sum(posteriori)
   
-  #2vs2
-  if(nrow(scores[!is.na(scores[, "joueur_A1"]), ]) > 0) {
-    
-    for(i in 1:nrow(scores[!is.na(scores[, "joueur_A1"]), ])) {
-      # print(paste0(i, " 2vs2"))
-      players <- posteriori_of_game_simplified(players, scores[!is.na(scores[, "joueur_A1"]), ][i, ])
-      
-      quatuor <- unlist(scores[!is.na(scores[, "joueur_A1"]), ][i, 2:5])
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      players[quatuor] <- mapply(simplifier_domain, players[quatuor], step = ifelse(sapply(players[quatuor], function(distr) max(distr[, "mu"]) - min(distr[, "mu"])) > 50, 2, 1), SIMPLIFY = FALSE)
-      
-      if(max(sapply(players[quatuor], function(distr) sum(distr[, "p"]))) > 1.0001) stop("Erreur de prob A")
-      
-    }
-  }
-  players
+  joint_density$joint_distr$p <- posteriori
+  joint_density
 }
 
-
- 
