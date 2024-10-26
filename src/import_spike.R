@@ -6,7 +6,7 @@ scores <- scores_init()
 
 players <- list()
 
-data <- read.csv2("data/data.csv")
+data <- read.csv2("data/spike.csv")
 colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "score_A", "score_B", "game_len", "date")
 data <- data[, 1:9]
 data <- data[-1, ]
@@ -14,6 +14,7 @@ data <- data[data[, "joueur_B1"] != "", ]
 data$score_A <- as.numeric(data$score_A)
 data$score_B <- as.numeric(data$score_B)
 data$win <- as.numeric(data$win)
+data$game_len <- as.numeric(data$game_len)
 
 mapping_joueurs <- matrix(c("W", "Will",
                             "É", "Éti",
@@ -36,7 +37,8 @@ mapping_joueurs <- matrix(c("W", "Will",
                             "M", "Mariève",
                             "LL", "Louis",
                             "JPL", "JPL",
-                            "AR", "AlexR"), ncol=2, byrow=T)
+                            "AR", "AlexR",
+                            "MAG", "MAG"), ncol=2, byrow=T)
 
 for(i in 1:4)
   data[, i] <- mapping_joueurs[match(data[, i], mapping_joueurs), 2]
@@ -57,20 +59,11 @@ for(d in as.character(dates)) {
   print(d)
   subdata <- as.data.frame(data[data[, "date"] == d, ])
   
-  #if(include_exact_points) {
-  #  scores <- add_scores(
-  #    do.call(rbind, apply(subdata[, 1:8], 1, scores_per_pt_converter)),
-  #    scores,
-  #    date = d
-  #  )
-  #} else {
-    scores <- add_scores(
-      subdata[, 1:8],
-      scores,
-      date = d
-    )
-  #}
-  
+  scores <- add_scores(
+    subdata[, 1:8],
+    scores,
+    date = d
+  )
 }
 
 name <- unique(unlist(scores[, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
