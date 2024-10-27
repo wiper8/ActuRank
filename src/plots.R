@@ -52,15 +52,7 @@ complement_credibilite <- function(players) {
 #   rbind(cbind(mu = distr[, "mu"], p = z * distr[, "p"]), cbind(mu = complement[, "mu"], p = (1 - z) * complement[, "p"]))
 # }
 
-show_current_probs_exact <- function(clusters) {
-  players <- marginal_from_joint_dependancy(clusters)
-  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
-  ordre <- order(ranks, decreasing = TRUE)
-  players <- players[ordre]
-  ranks <- ranks[ordre]
-  pairs <- t(combn(1:length(ranks), 2))
-  #players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
-  
+show_current_probs_exact <- function(clusters, ranks, pairs) {
   groups_to_join <- seq_along(clusters)
   joint_distr_from_clusters <- join_clusters(clusters, groups_to_join, seuil_simplif = 0)
   
@@ -79,15 +71,7 @@ show_current_probs_exact <- function(clusters) {
              prob = round(prob, 3), prob_win_11 = round(sapply(prob, function(p) p_win_game_of(p, 11)), 3))
 }
 
-show_current_probs_exact2 <- function(clusters) {
-  players <- marginal_from_joint_dependancy(clusters)
-  ranks <- sapply(players, function(distr) calculate_skill(distr, players))
-  ordre <- order(ranks, decreasing = TRUE)
-  players <- players[ordre]
-  ranks <- ranks[ordre]
-  pairs <- t(combn(1:length(ranks), 2))
-  #players_credibilise <- lapply(players, function(distr) credibilise(distr, players))
-  
+show_current_probs_exact2 <- function(clusters, ranks, pairs) {
   probs <- data.frame(
     A=names(ranks)[pairs[, 1]], B=names(ranks)[pairs[, 2]],
     prob = NA, prob_win_11 = NA
@@ -117,21 +101,51 @@ show_current_probs_exact2 <- function(clusters) {
       res <- expand.grid(noms_a_pairer)
     }
     
-    prob_res <- apply(res, 1, function(noms_pair) {
-      joint_distr_from_clusters <- join_clusters_pair_marginal(clusters, noms_pair, 20000)
+    if (prod(sapply(clusters[unique(clust_pair)], function(x) nrow(x$grid_id))) <= 100000) {
+      joint_distr_from_clusters <- join_clusters(
+        clusters, unique(clust_pair)
+      )
       
-      skills_idx <- joint_distr_from_clusters$grid_id[noms_pair]
-      MS1_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[1]]] / 100, transition_matrix)
-      MS2_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[2]]] / 100, transition_matrix)
-      
-      MS1 <- MS1_list[skills_idx[[1]]]
-      MS2 <- MS2_list[skills_idx[[2]]]
-      
-      sum(mapply(prob_win_point_1vs1_knowing_skills,
-                 MS1, MS2) * joint_distr_from_clusters$joint_distr$p)
-    })
+      prob_res <- apply(res, 1, function(noms_pair) {
+        skills_idx <- joint_distr_from_clusters$grid_id[noms_pair]
+        MS1_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[1]]] / 100, transition_matrix)
+        MS2_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[2]]] / 100, transition_matrix)
+        
+        MS1 <- MS1_list[skills_idx[[1]]]
+        MS2 <- MS2_list[skills_idx[[2]]]
+        
+        likelihood_res <- numeric(length(joint_distr_from_clusters$joint_distr$p))
+        same_force <- joint_distr_from_clusters$domains[[noms_pair[1]]][skills_idx[[1]]] == joint_distr_from_clusters$domains[[noms_pair[2]]][skills_idx[[2]]]
+        likelihood_res[same_force] <- 0.5
+        likelihood_res[!same_force] <- mapply(
+          prob_win_point_1vs1_knowing_skills,
+          MS1[!same_force], MS2[!same_force]
+        )
+        sum(likelihood_res * joint_distr_from_clusters$joint_distr$p)
+      })
+    } else {
+      prob_res <- apply(res, 1, function(noms_pair) {
+        
+        joint_distr_from_clusters <- join_clusters_pair_marginal(clusters, names)
+        
+        skills_idx <- joint_distr_from_clusters$grid_id[noms_pair]
+        MS1_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[1]]] / 100, transition_matrix)
+        MS2_list <- lapply(joint_distr_from_clusters$domains[[noms_pair[2]]] / 100, transition_matrix)
+        
+        likelihood_res <- numeric(length(joint_distr_from_clusters$joint_distr$p))
+        same_force <- joint_distr_from_clusters$domains[[noms_pair[1]]][skills_idx[[1]]] == joint_distr_from_clusters$domains[[noms_pair[2]]][skills_idx[[2]]]
+        likelihood_res[same_force] <- 0.5
+        likelihood_res[!same_force] <- mapply(
+          prob_win_point_1vs1_knowing_skills,
+          MS1[!same_force], MS2[!same_force]
+        )
+        sum(likelihood_res * joint_distr_from_clusters$joint_distr$p)
+      })
+    }
+    
     cbind(res, prob_res)
   }, simplify = FALSE)
+  
   probs_df_not_sorted <- do.call(rbind, tmp)
   
   prob <- apply(probs, 1, function(x) {
@@ -153,15 +167,16 @@ show_current_probs_exact2 <- function(clusters) {
 }
 
 show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credibility = FALSE) {
-  probs <- show_current_probs_exact2(clusters)
-  
   players <- marginal_from_joint_dependancy(clusters)
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   ordre <- order(ranks, decreasing = TRUE)
   players <- players[ordre]
   ranks <- ranks[ordre]
-  init_theta <- init_theta[names(players)]
   pairs <- t(combn(1:length(ranks), 2))
+  
+  init_theta <- init_theta[names(players)]
+  
+  probs <- show_current_probs_exact2(clusters, ranks, pairs)
   
   # Trouver les composantes fortement connexes d'un graphe
   pairings <- players_pairs(scores)
@@ -453,7 +468,7 @@ simplifier_core <- function(joint_density, dataset, ...) {
     },
     absolute_max_dim = 1000000,
     min_no_simplif = if (dataset == "ping") {
-      10000
+      5000
     } else if (dataset == "spike") {
       10000
     } else if (dataset == "pickle") {
@@ -510,10 +525,10 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       if (any(table(unlist(lapply(clusters, `[[`, "names"))) > 1)) stop("joueurs en doublons dans clusters")
     })
     
-    if(d %in% as.character(drift_dates)) {
+    if (d %in% as.character(drift_dates)) {
       clusters <- mapply(drift_exact3, clusters, list(clusters), SIMPLIFY = FALSE)
     }
-    if(d %in% as.character(game_dates)) {
+    if (d %in% as.character(game_dates)) {
       # commencer avec le simple
       # énumérer les paires de simples jouées dans la journée
       scores_subset <- scores[scores[, "date"] == d, ]
@@ -596,9 +611,9 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           new_clusters <- tmp[[1]]
           excluded_members <- tmp[[2]]
           clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
-          print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
           #print(sapply(clusters, `[`, "names"))
         }
+        print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
       }
       
       # continuer avec le double
@@ -661,18 +676,20 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
           new_clusters <- tmp[[1]]
           excluded_members <- tmp[[2]]
           clusters <- c(new_clusters, clusters[!seq_along(clusters) %in% groups_to_join])
-          print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
           #print(sapply(clusters, `[`, "names"))
         }
+        print(paste0(length(clusters), " clusters, length ", paste0(sapply(clusters, function(x) length(x$names)), collapse = ", ")))
       }
     }
+    
+    print("update done")
     
     if (dataset == "ping") {
       clusters <- lapply(clusters, function(joint_density) {
         simplifier_joint_dependancy(
           joint_density, seuil = 0.0001,
           absolute_max_dim = 1000000,
-          min_no_simplif = 5000,
+          min_no_simplif = 1000,
           verbose = FALSE
         )
       })

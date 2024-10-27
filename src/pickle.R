@@ -1,4 +1,6 @@
-generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
+source("src/update_scores.R")
+
+generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
                                                  n_games = 100,
                                                  games_g = c(7, 11),
                                                  scores) {
@@ -76,10 +78,27 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
         )
       )
       
-      possible_scores <- cbind(
-        possible_scores,
-        apply(possible_scores, 1, function(x) mean(simuls[1, ] == x[1] & simuls[2, ] == x[2]))
-      )
+      if (p == 0.5) {
+        possible_scores <- cbind(
+          possible_scores,
+          apply(
+            possible_scores,
+            1,
+            function(x) mean(simuls[1, ] == x[1] & simuls[2, ] == x[2] | simuls[1, ] == x[2] & simuls[2, ] == x[1])
+          )
+        )
+      } else {
+        possible_scores <- cbind(
+          possible_scores,
+          apply(
+            possible_scores,
+            1,
+            function(x) mean(simuls[1, ] == x[1] & simuls[2, ] == x[2])
+          )
+        )
+      }
+      
+      possible_scores[, 3] <- possible_scores[, 3] / sum(possible_scores[, 3])
       
       #ggplot()+
       #  geom_point(aes(x = possible_scores[, 1], y = possible_scores[, 2], col = possible_scores[, 3]))
@@ -104,7 +123,7 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.01),
 
 print("Loading...")
 pickle_estim <- generate_likelihood_estimates_pickle(
-  dom_p = seq(0, 0.5, 0.01),
+  dom_p = seq(0, 0.5, 0.005),
   n_games = 5000,
   games_g = unique(as.numeric(scores$game_len)),
   scores
@@ -114,7 +133,12 @@ p_win_exact_not_vec_pickle <- function(
     p, scoreA, scoreB, game_len, win, pickle_estim
 ) {
   stopifnot((scoreA > scoreB & win) | (scoreA < scoreB & !win))
-  
+  if (win == 0) {
+    p <- 1 - p
+    tmp <- scoreB
+    scoreB <- scoreA
+    scoreA <- tmp
+  }
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(game_len)]]))
   sapply(p, function(p) {
     # TODO pourrait arriver qu'on joue une partie sans écarts, dans ce cas,
@@ -135,6 +159,7 @@ p_win_exact_not_vec_pickle <- function(
   })
 }
 
+
 p_win_game_of_not_vec_pickle <- function(p, g, pickle_estim) {
   dom_p <- as.numeric(rownames(pickle_estim[[as.character(g)]]))
   tmp <- pickle_estim[[as.character(g)]]
@@ -147,3 +172,26 @@ p_win_game_of_not_vec_pickle <- function(p, g, pickle_estim) {
     sum(tmp[which.min(abs(p - dom_p)), col_where_A_wins])
   }
 }
+
+stopifnot(all.equal(
+  p_win_exact_not_vec_pickle(0.4, 11, 7, 11, 1, pickle_estim),
+  p_win_exact_not_vec_pickle(1 - 0.4, 7, 11, 11, 0, pickle_estim)
+))
+stopifnot(all.equal(
+  p_win_exact_not_vec_pickle(0.7, 11, 7, 11, 1, pickle_estim),
+  p_win_exact_not_vec_pickle(1 - 0.7, 7, 11, 11, 0, pickle_estim)
+))
+stopifnot(all.equal(
+  p_win_exact_not_vec_pickle(0.5, 11, 7, 11, 1, pickle_estim),
+  p_win_exact_not_vec_pickle(0.5, 7, 11, 11, 0, pickle_estim)
+))
+
+stopifnot(all.equal(
+  likelihood_1vs1_exact(joint_density,
+                        score = c(date = NA, joueur_A1 = NA, joueur_A2 = "A", joueur_B1 = "B", joueur_B2 = NA, win = 1, score_A = 11, score_B = 7, game_len = 11, serve_for_pt = TRUE),
+                        dataset = "pickle"),
+  likelihood_1vs1_exact(joint_density,
+                        score = c(date = NA, joueur_A1 = NA, joueur_A2 = "B", joueur_B1 = "A", joueur_B2 = NA, win = 0, score_A = 7, score_B = 11, game_len = 11, serve_for_pt = TRUE),
+                        dataset = "pickle"),
+))
+

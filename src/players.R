@@ -385,9 +385,10 @@ test_hyp <- function(clusters) {
     c(
       names(players)[pairs[, 1]],
       names(players)[pairs[, 2]],
+      rep(NA, nrow(pairs)),
       rep(NA, nrow(pairs))
-    ), ncol = 3,
-    dimnames = list(NULL, c("A", "B", "p"))
+    ), ncol = 4,
+    dimnames = list(NULL, c("A", "B", "P(A>B)", "P(A=B)"))
   )
   
   # pour chaque paire :
@@ -406,10 +407,12 @@ test_hyp <- function(clusters) {
     # sommes la joint_distr par paire de joueurs
     subset <- joint[, c(names(players)[pairs[i, ]], "p")]
     res[i, 3] <- sum(apply(subset, 1, function(x) (x[1] > x[2]) * x[3]))
+    res[i, 4] <- sum(apply(subset, 1, function(x) (x[1] == x[2]) * x[3]))
   }
   
   res <- as.data.frame(res)
-  res$p <- as.numeric(res$p)
+  res$`P(A>B)` <- as.numeric(res$`P(A>B)`)
+  res$`P(A=B)` <- as.numeric(res$`P(A=B)`)
   res
 }
 
@@ -748,7 +751,7 @@ join_clusters <- function(clusters, which_i, seuil_simplif = 0.00001) {
   )
 }
 
-join_clusters_pair_marginal <- function(clusters, names, seuil_nrow_marginal) {
+join_clusters_pair_marginal <- function(clusters, names) {
   which_i <- sapply(lapply(clusters, `[[`, "names"), function(noms) any(noms %in% names))
   
   # summarise marginal
@@ -758,14 +761,12 @@ join_clusters_pair_marginal <- function(clusters, names, seuil_nrow_marginal) {
     which_out <- which(colnames(clust$grid_id) %in% players_to_marginalize)
     if (isTRUE(all.equal(seq_along(clust$grid_id), sort(which_out)))) {
       clust
-    } else if (nrow(clust$grid_id) > seuil_nrow_marginal){
-      marginal_joint_dependancy(clust, which_out, format = 2)[[2]]
     } else {
-      clust
+      marginal_joint_dependancy(clust, which_out, format = 2)[[2]]
     }
   })
   
-  join_clusters(marginals, seq_along(marginals), seuil_simplif = 0)
+  join_clusters(marginals, seq_along(marginals))
 }
 
 generate_partitions <- function(n, k, min_cluster_size = 1) {

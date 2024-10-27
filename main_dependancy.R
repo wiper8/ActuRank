@@ -2,15 +2,15 @@ dataset <- "spike"
 
 if (dataset == "ping") {
   include_exact_points <- FALSE
-  dim_len_mu <- 5 #15
+  dim_len_mu <- 10 #15
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 16
+  dim_len_mu <- 17
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
-  dim_len_mu <- 18
+  dim_len_mu <- 20
 }
 
 if (dataset == "ping") {
@@ -39,7 +39,6 @@ games_matchups(scores, players)
 set.seed(2024L)
 
 # generate_GIF_images(scores)
-
 tmp <- show_ranking_history_dependancy(scores, dataset)
 players <- tmp[[1]]
 clusters <- tmp[[3]]
