@@ -1,9 +1,14 @@
 source("src/update_scores.R")
 
+faster_sample.int <- function(n, prob) {
+  .Internal(sample(n, 1, FALSE, prob))
+}
+
 generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
                                                  n_games = 100,
                                                  games_g = c(7, 11),
-                                                 scores) {
+                                                 scores,
+                                                 accelerator = FALSE) {
   
   stopifnot(max(dom_p) <= 0.5)
   bootstrap <- function(simuls, n, dom) {
@@ -42,6 +47,11 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
       g <- games_g[i2]
       dom_len_max <- max(scores[scores$game_len == g, c("score_A", "score_B")])
       
+      acc_step <- 3 # à ajuster dans if(accelerator)
+      acc_step_1 <- acc_step - 1
+      prob_vector <- rep(dbinom(acc_step:0, acc_step, p) / choose(acc_step, acc_step:0), choose(acc_step, acc_step:0))
+      stopifnot(all.equal(sum(prob_vector), 1))
+      
       simuls <- replicate(n_games, {
         scoreA <- 0
         scoreB <- 0
@@ -49,8 +59,64 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
         serveA <- sample(c(TRUE, FALSE), 1, prob = c(p, 1 - p))
         # supposons que le premier point sert à déterminer qui commence avec le service 
         
+        if (accelerator) {
+          
+          while(max(scoreA, scoreB) < (g - acc_step_1)) {
+            win_case <- (1:(2^acc_step))[faster_sample.int((2^acc_step), prob_vector)]
+            if (win_case == 1) {
+              #ppp
+              if (serveA) scoreA <- scoreA + 1
+              scoreA <- scoreA + 2
+              serveA <- TRUE
+            } else if (win_case == 2) {
+              #ppq
+              if (serveA) scoreA <- scoreA + 1
+              scoreA <- scoreA + 1
+              serveA <- FALSE
+            } else if (win_case == 3) {
+              #pqp
+              if (serveA) {
+                scoreA <- scoreA + 1
+              } else {
+                serveA <- TRUE
+              }
+            } else if (win_case == 4) {
+              #qpp
+              if (!serveA) scoreB <- scoreB + 1
+              scoreA <- scoreA + 1
+            } else if (win_case == 5) {
+              #pqq
+              if (serveA) {
+                scoreA <- scoreA + 1
+              } else {
+                scoreB <- scoreB + 1
+                serveA <- FALSE
+              }
+            } else if (win_case == 6) {
+              #qpq
+              if (!serveA) {
+                scoreB <- scoreB + 1
+              }
+              serveA <- FALSE
+            } else if (win_case == 7) {
+              #qqp
+              scoreB <- scoreB + 1
+              if (!serveA) {
+                scoreB <- scoreB + 1
+              }
+              serveA <- TRUE
+            } else {
+              #qqq
+              if(!serveA) scoreB <- scoreB + 1
+              scoreB <- scoreB + 2
+              serveA <- FALSE
+            }
+          }
+        }
+        
+        # code version la plus simple
         while(max(scoreA, scoreB) < g | abs(scoreA - scoreB) < 2) {
-          win <- (1:2)[sample.int(2, 1, FALSE, c(p, 1 - p))]
+          win <- (1:2)[faster_sample.int(2, c(p, 1 - p))]
           if (win == 1) {
             if (serveA) scoreA <- scoreA + 1
             else serveA <- TRUE
@@ -59,6 +125,7 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
             else scoreB <- scoreB + 1
           }
         }
+        
         c(scoreA, scoreB)
       })
       
@@ -121,13 +188,32 @@ generate_likelihood_estimates_pickle <- function(dom_p = seq(0, 0.5, 0.005),
   res
 }
 
-print("Loading...")
-pickle_estim <- generate_likelihood_estimates_pickle(
-  dom_p = seq(0, 0.5, 0.005),
-  n_games = 5000,
-  games_g = unique(as.numeric(scores$game_len)),
-  scores
-)
+set.seed(2024L)
+if ("pickle_estim_15000.RDS" %in% list.files()) {
+  print("loading old pickle_estim_15000.RDS")
+  pickle_estim <- readRDS("pickle_estim_15000.RDS")
+  
+  # TODO pas parfait car on pourrait avoir une partie qui dépasse le max précédent décart de 2 points
+  if (!all(names(pickle_estim) %in% unique(as.numeric(scores[scores$serve_for_pt, "game_len"])))) {
+    new_g <- names(pickle_estim)[names(pickle_estim) %in% unique(as.numeric(scores[scores$serve_for_pt, "game_len"]))]
+    pickle_estim2 <- generate_likelihood_estimates_pickle(
+      dom_p = seq(0, 0.5, 0.005),
+      n_games = 15000,
+      games_g = new_g,
+      scores
+    )
+    saveRDS(c(pickle_estim, pickle_estim2), "pickle_estim_15000.RDS")
+  }
+} else {
+  print("Loading...")
+  pickle_estim <- generate_likelihood_estimates_pickle(
+    dom_p = seq(0, 0.5, 0.005),
+    n_games = 15000,
+    games_g = unique(as.numeric(scores[scores$serve_for_pt, "game_len"])),
+    scores
+  )
+  saveRDS(pickle_estim, "pickle_estim_15000.RDS")
+}
 
 p_win_exact_not_vec_pickle <- function(
     p, scoreA, scoreB, game_len, win, pickle_estim
@@ -188,10 +274,12 @@ stopifnot(all.equal(
 
 stopifnot(all.equal(
   likelihood_1vs1_exact(joint_density,
+                        likelihood_1vs1_exact_prob_win_1_pt(joint_density, c("A", "B")),
                         score = c(date = NA, joueur_A1 = NA, joueur_A2 = "A", joueur_B1 = "B", joueur_B2 = NA, win = 1, score_A = 11, score_B = 7, game_len = 11, serve_for_pt = TRUE),
                         dataset = "pickle"),
   likelihood_1vs1_exact(joint_density,
+                        likelihood_1vs1_exact_prob_win_1_pt(joint_density, c("B", "A")),
                         score = c(date = NA, joueur_A1 = NA, joueur_A2 = "B", joueur_B1 = "A", joueur_B2 = NA, win = 0, score_A = 7, score_B = 11, game_len = 11, serve_for_pt = TRUE),
-                        dataset = "pickle"),
+                        dataset = "pickle")
 ))
 
