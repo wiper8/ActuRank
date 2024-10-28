@@ -1,16 +1,20 @@
-dataset <- "spike"
+dataset <- "ping"
+granularity_level <- 1
 
-if (dataset == "ping") {
-  include_exact_points <- FALSE
-  dim_len_mu <- 10 #15
-}
+ping_granularity <- data.frame(
+  level = c(1, 2, 3, 4),
+  # TODO
+  dim_len_mu = c(10, 20, 30, 40),
+  # TODO
+  seuil_freq = c(0, 20, 50, 300)
+)
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 17
+  dim_len_mu <- 20
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
-  dim_len_mu <- 20
+  dim_len_mu <- 30
 }
 
 if (dataset == "ping") {
@@ -37,6 +41,16 @@ sum(scores$score_A + scores$score_B)
 
 games_matchups(scores, players)
 set.seed(2024L)
+
+if (dataset == "ping") {
+  include_exact_points <- FALSE
+  dim_len_mu <- ping_granularity[granularity_level, "dim_len_mu"]
+  seuil_freq <- ping_granularity[granularity_level, "seuil_freq"]
+  
+  names_peu_freq <- scores_stats(scores, players)$games_played
+  names_peu_freq <- names(names_peu_freq[names_peu_freq <= seuil_freq])
+  scores <- scores[apply(scores[, 2:5], 1, function(x) !any(x %in% names_peu_freq)), ]
+}
 
 # generate_GIF_images(scores)
 tmp <- show_ranking_history_dependancy(scores, dataset)
