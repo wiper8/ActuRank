@@ -10,7 +10,7 @@ ping_granularity <- data.frame(
 )
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 10
+  dim_len_mu <- 20
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -94,12 +94,12 @@ ggplot(graph_data)+
 
 ggplot(graph_data)+
   theme_bw()+
-  geom_line(aes(x=day_i, y=rank_skill, col=player), linewidth=1)+
-  geom_point(aes(x=day_i, y=rank_skill, col=player), data=graph_data[graph_data$played, ])+
+  geom_line(aes(x=day_i, y=credibility, col=player), linewidth=1)+
+  geom_point(aes(x=day_i, y=credibility, col=player), data=graph_data[graph_data$played, ])+
   scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
   theme(panel.grid.minor = element_blank())+
   scale_x_continuous(breaks = 1:max(graph_data[, "day_i"], na.rm = TRUE))+
-  scale_y_reverse(breaks = 1:max(graph_data[, "credibility"], na.rm = TRUE))
+  ylim(0, 1)
 
 sort(
   sapply(

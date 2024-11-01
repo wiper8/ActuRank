@@ -341,7 +341,7 @@ show_detailed_skill_per_player <- function(players, ordered = TRUE) {
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   if (ordered)
     ranks <- ranks[order(ranks, decreasing = TRUE)]
-  print(ranks)
+  print(paste0("ranks : ", ranks, collapse = ""))
   
   graph_data <- data.frame(
     skill = ranks,
@@ -730,7 +730,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       clusters,
       function(distr) compute_multivariate_credibility(distr$joint_distr)
     ))
-    print(credib)
+    print(paste0("credib : ", credib, collapse = ""))
     
     scores_players <- show_current_ranking(clusters, scores = scores, init_theta = scores_players)
     for(n in names(marginales)) {

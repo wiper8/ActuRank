@@ -76,6 +76,8 @@ simplifier_joint_dependancy <- function(
     verbose = FALSE,
     count = TRUE
 ) {
+  verbose_overwrite <- verbose
+  if (!count) verbose_overwrite <- FALSE
   if (nrow(joint_density$joint_distr) >= min_no_simplif) {
     tmp <- sort(joint_density$joint_distr$p)
     thres_pos <- which(cumsum(tmp) < seuil)
@@ -93,10 +95,10 @@ simplifier_joint_dependancy <- function(
     
     if (count) probs_kept_counter <<- probs_kept_counter * sum(joint_density$joint_distr$p[keep])
     
-    if(any(!keep) & verbose) {
+    if(verbose_overwrite && any(!keep) & verbose) {
       print(paste0("% de données conservées : ", round(mean(keep), 4) * 100), collapse = "")
       print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]), 6) * 100), collapse = "")
-    } else if(sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
+    } else if(verbose_overwrite && sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
       print(paste0("% de données conservées : ", round(mean(keep), 4) * 100), collapse = "")
       print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]),6) * 100), collapse = "")
     }
@@ -105,9 +107,9 @@ simplifier_joint_dependancy <- function(
     keep <- joint_density$joint_distr$p > 0
   }
   
-  if(any(!keep) & verbose) {
+  if(verbose_overwrite && any(!keep) & verbose) {
     print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
-  } else if(sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
+  } else if(verbose_overwrite && sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
     print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
   }
   
@@ -129,6 +131,8 @@ simplifier_joint_dependancy_for_join_clusters <- function(
     verbose = TRUE,
     count = TRUE
 ) {
+  verbose_overwrite <- verbose
+  if (!count) verbose_overwrite <- FALSE
   tmp <- sort(joint_density$joint_distr$p)
   thres_pos <- which(cumsum(tmp) < seuil)
   if(length(thres_pos) != 0) {
@@ -139,10 +143,10 @@ simplifier_joint_dependancy_for_join_clusters <- function(
   
   if (count) probs_kept_counter <<- probs_kept_counter * sum(joint_density$joint_distr$p[keep])
   
-  if(any(!keep) & verbose) {
+  if(verbose_overwrite && any(!keep) & verbose) {
     print(paste0("% de données conservées : ", round(mean(keep), 4) * 100), collapse = "")
     print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]), 6) * 100), collapse = "")
-  } else if(sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
+  } else if(verbose_overwrite && verbose_overwrite && sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
     print(paste0("% de données conservées : ", round(mean(keep), 4) * 100), collapse = "")
     print(paste0("% de probs conservées : ", round(sum(joint_density$joint_distr$p[keep]),6) * 100), collapse = "")
   }
@@ -150,7 +154,7 @@ simplifier_joint_dependancy_for_join_clusters <- function(
   
   if(any(!keep) & verbose) {
     print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
-  } else if(sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
+  } else if(verbose_overwrite && sum(joint_density$joint_distr$p[keep]) < 0.99 | sum(keep) > 200000) {
     print(paste0("nrow joint distr : ", nrow(joint_density$joint_distr[keep, , drop = FALSE]), collapse = ""))
   }
   
