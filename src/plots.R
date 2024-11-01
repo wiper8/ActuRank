@@ -231,9 +231,7 @@ show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credi
   
   
   #weighter un peu par la crédibilité
-  weights <- sapply(players[names(ranks)], compute_credibility)
-  weights <- mapply(sum, weights[pairs[, 1]], weights[pairs[, 2]])
-  weights <- rep(1, length(weights)) #écraser les weights pour ne pas les utiliser. Compute_credibility ne fonctionne pas bien conceptuellement
+  weights <- rep(1, nrow(pairs))
   to_optim <- function(Forces) {
     estim <- 1 / (1 + 10^(-(Forces[pairs[, 1]] - Forces[pairs[, 2]]) / 20))
     sum(weights * (estim - probs[, "prob_win_11"])^2) / sum(weights)
@@ -265,7 +263,10 @@ show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credi
   
   if(sqrt(res$value) > 0.02) warning(paste0("Convergence non parfaite des scores. RMSE of probs : ", 100 * round(sqrt(res$value), 3), "%", collapse = ""))
   
-  credibl <- sapply(players[names(res$par)], compute_credibility)
+  credibl <- unlist(lapply(
+    clusters,
+    function(distr) compute_multivariate_credibility(distr$joint_distr)
+  ))[names(res$par)]
   
   graph_data <- data.frame(
     score = res$par,
@@ -410,7 +411,11 @@ show_IC_skill <- function(players) {
   graph_data2 <- data.frame(
     t(players_IC),
     player = colnames(players_IC),
-    credibl = sapply(players, compute_credibility)
+    credibl = unlist(lapply(
+      clusters,
+      function(distr) compute_multivariate_credibility(distr$joint_distr)
+    ))[names(players)]
+    
   )
   
   ggplot()+
@@ -507,7 +512,8 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
   game_dates <- as.Date(unique(scores[, "date"]))
   game_dates <- sort(game_dates)
   
-  drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 month")[-1])
+  drift_dates <- as.character(seq.Date(as.Date(min(scores[, "date"])), as.Date(max(scores[, "date"])), by = "+1 week"))
+  #drift_dates <- as.character(seq.Date(as.Date(format(as.Date(min(scores[, "date"])), "%Y-%m-01")), as.Date(max(scores[, "date"])), by = "+1 week")[-1])
   all_dates <- c(game_dates, as.Date(drift_dates))
   all_dates <- unique(all_dates)
   all_dates <- as.Date(all_dates)
@@ -521,6 +527,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     rank = NA,
     skill = NA,
     rank_skill = NA,
+    credibility = NA,
     played = FALSE
   )
   
@@ -554,7 +561,11 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
         marginales <- marginal_from_joint_dependancy(clusters)
         if (length(marginales) == 0) {
           credibl <- numeric()
-        } else credibl <- sapply(marginales, compute_credibility)
+        } else credibl <- unlist(lapply(
+          clusters,
+          function(distr) compute_multivariate_credibility(distr$joint_distr)
+        ))[names(marginales)]
+        
         
         pairs <- mapply(function(a, b) {
           sort(c(a, b))
@@ -715,12 +726,19 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     
     marginales <- marginal_from_joint_dependancy(clusters)
     
+    credib <- unlist(lapply(
+      clusters,
+      function(distr) compute_multivariate_credibility(distr$joint_distr)
+    ))
+    print(credib)
+    
     scores_players <- show_current_ranking(clusters, scores = scores, init_theta = scores_players)
     for(n in names(marginales)) {
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "score"] <- scores_players[n]
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank"] <- which(names(sort(scores_players, decreasing = TRUE)) == n)
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "skill"] <- sum(marginales[[n]][, "mu"] * marginales[[n]][, "p"])
       graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "rank_skill"] <- which(names(sort(sapply(marginales, function(distr) sum(distr[, "mu"] * distr[, "p"])), decreasing = TRUE)) == n)
+      graph_data[graph_data[, "date"] == d & graph_data[, "player"] == n, "credibility"] <- credib[n]
     }
     players_today <- unique(unlist(scores[scores[, "date"] == d, c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2")]))
     players_today <- players_today[!is.na(players_today)]
@@ -763,7 +781,10 @@ generate_GIF_images <- function(scores, dataset = "ping") {
     marginales <- marginal_from_joint_dependancy(clusters)
     if (length(marginales) == 0) {
       credibl <- numeric()
-    } else credibl <- sapply(marginales, compute_credibility)
+    } else credibl <- unlist(lapply(
+      clusters,
+      function(distr) compute_multivariate_credibility(distr$joint_distr)
+    ))[names(marginales)]
     
     pairs <- mapply(function(a, b) {
       sort(c(a, b))

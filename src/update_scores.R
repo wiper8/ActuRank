@@ -297,9 +297,10 @@ likelihood_1vs1_exact <- function(joint_density, P_1_wins_pt, score, dataset) {
     p * win + (1 - p) * (1 - win)
   }
   
-  marginales <- marginal_from_joint(joint_density)
-  
-  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+  # marginales <- marginal_from_joint(joint_density)
+  name <- score[paste0("joueur_", c("A1", "A2", "B1", "B2"))]
+  name <- name[!is.na(name)]
+  if(include_exact_points | any(is_exact_score_used_for_player(joint_density$joint_distr))) {
     Likelihood <- Likelihood_fun1(P_1_wins_pt)
   } else {
     Likelihood <- Likelihood_fun2(P_1_wins_pt)
@@ -429,7 +430,7 @@ likelihood_2vs2_exact <- function(joint_density, P_A_wins_pt, score, dataset) {
   
   
   #weighter les games selon le nombre de jours passé avec (0.5^(2/365))^-x
-  if(include_exact_points | any(sapply(marginales[name], is_exact_score_used_for_player))) {
+  if(include_exact_points | any(is_exact_score_used_for_player(joint_density$joint_distr))) {
     Likelihood <- Likelihood_fun1(P_A_wins_pt)
   } else {
     Likelihood <- Likelihood_fun2(P_A_wins_pt)

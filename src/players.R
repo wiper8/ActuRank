@@ -368,7 +368,7 @@ drift_exact2 <- function(joint_density, clusters, a = 0.05) {
   joint_density
 }
 
-drift_exact3 <- function(joint_density, clusters, a = 0.05) {
+drift_exact3 <- function(joint_density, clusters, a = 0.01) {
   joint_density$joint_distr$p <- (1 - a) * joint_density$joint_distr$p + a / nrow(joint_density$joint_distr)
   joint_density
 }
@@ -1114,7 +1114,27 @@ compute_credibility <- function(distr, k = 100 / dim_len_mu / 50) {
   sum(distr[(distr[, "mu"] - e) <= 50*k & -50*k <= (distr[, "mu"] - e), "p"])
 }
 
-is_exact_score_used_for_player <- function(distr, seuil = 0.7) {
-  compute_credibility(distr) < seuil
+compute_multivariate_credibility <- function(distr) {
+  p_ncol <- ncol(distr)
+  idx <- t(apply(distr[, -p_ncol, drop = FALSE], 1, order2))
+  spread <- diff(range(idx))
+  apply(idx, 2, function(id_row) {
+    
+    e <- sum(id_row * distr[, p_ncol])
+    e2 <- sum(id_row^2 * distr[, p_ncol])
+    v <- e2 - e^2
+    # v=0 -> credib = 1
+    # v = ((b-a+1)^2 - 1)/12 -> credib = 0
+    1 + (-12/((spread + 1)^2 - 1)) * v
+  })
+}
+
+order2 <- function(x) {
+  unique_values <- sort(unique(x))
+  sapply(x, function(x) which(x == unique_values))
+}
+
+is_exact_score_used_for_player <- function(distr, seuil = 0.95) {
+  compute_multivariate_credibility(distr) < seuil
 }
 

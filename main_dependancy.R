@@ -1,4 +1,4 @@
-dataset <- "ping"
+dataset <- "spike"
 granularity_level <- 1
 
 ping_granularity <- data.frame(
@@ -10,7 +10,7 @@ ping_granularity <- data.frame(
 )
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 20
+  dim_len_mu <- 10
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -55,43 +55,58 @@ if (dataset == "ping") {
 # generate_GIF_images(scores)
 tmp <- show_ranking_history_dependancy(scores, dataset)
 players <- tmp[[1]]
+graph_data <- tmp[[2]]
 clusters <- tmp[[3]]
 
 # score history
-ggplot(tmp[[2]])+
+ggplot(graph_data)+
   theme_bw()+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
-  geom_point(aes(x=date, y=score, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
-  scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
+  geom_point(aes(x=date, y=score, col=player), data=graph_data[graph_data$played, ])+
+  scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
   coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))
 
-ggplot(tmp[[2]])+
+ggplot(graph_data)+
   theme_bw()+
   geom_line(aes(x=date, y=skill, col=player), linewidth=1)+
-  geom_point(aes(x=date, y=skill, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
-  scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
+  geom_point(aes(x=date, y=skill, col=player), data=graph_data[graph_data$played, ])+
+  scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
   coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))
 
 # ranking history
-ggplot(tmp[[2]])+
+ggplot(graph_data)+
   theme_bw()+
   geom_line(aes(x=day_i, y=rank, col=player), linewidth=1)+
-  geom_point(aes(x=day_i, y=rank, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
-  scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
+  geom_point(aes(x=day_i, y=rank, col=player), data=graph_data[graph_data$played, ])+
+  scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
   theme(panel.grid.minor = element_blank())+
-  scale_x_continuous(breaks = 1:max(tmp[[2]][, "day_i"], na.rm = TRUE))+
-  scale_y_reverse(breaks = 1:max(tmp[[2]][, "rank"], na.rm = TRUE))
+  scale_x_continuous(breaks = 1:max(graph_data[, "day_i"], na.rm = TRUE))+
+  scale_y_reverse(breaks = 1:max(graph_data[, "rank"], na.rm = TRUE))
 
-ggplot(tmp[[2]])+
+ggplot(graph_data)+
   theme_bw()+
   geom_line(aes(x=day_i, y=rank_skill, col=player), linewidth=1)+
-  geom_point(aes(x=day_i, y=rank_skill, col=player), data=tmp[[2]][tmp[[2]]$played, ])+
-  scale_color_discrete(breaks = tmp[[2]][order(tmp[[2]][tmp[[2]][, 1] == max(tmp[[2]][, 1]), "score"], decreasing = T), "player"])+
+  geom_point(aes(x=day_i, y=rank_skill, col=player), data=graph_data[graph_data$played, ])+
+  scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
   theme(panel.grid.minor = element_blank())+
-  scale_x_continuous(breaks = 1:max(tmp[[2]][, "day_i"], na.rm = TRUE))+
-  scale_y_reverse(breaks = 1:max(tmp[[2]][, "rank_skill"], na.rm = TRUE))
+  scale_x_continuous(breaks = 1:max(graph_data[, "day_i"], na.rm = TRUE))+
+  scale_y_reverse(breaks = 1:max(graph_data[, "rank_skill"], na.rm = TRUE))
 
-sort(sapply(players, compute_credibility), decreasing = T)
+ggplot(graph_data)+
+  theme_bw()+
+  geom_line(aes(x=day_i, y=rank_skill, col=player), linewidth=1)+
+  geom_point(aes(x=day_i, y=rank_skill, col=player), data=graph_data[graph_data$played, ])+
+  scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
+  theme(panel.grid.minor = element_blank())+
+  scale_x_continuous(breaks = 1:max(graph_data[, "day_i"], na.rm = TRUE))+
+  scale_y_reverse(breaks = 1:max(graph_data[, "credibility"], na.rm = TRUE))
+
+sort(
+  sapply(
+    clusters,
+    function(distr) compute_multivariate_credibility(distr$joint_distr)),
+  decreasing = TRUE
+)
 
 show_current_ranking(clusters, scores)
 
