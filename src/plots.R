@@ -283,8 +283,7 @@ show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credi
         scale_color_discrete(breaks = graph_data$player[order(graph_data$score, decreasing = T)])+
         #xlim(0, 100)+
         ylim(0, 1)+
-        theme_bw()+
-        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
+        theme_bw()+ylab("Crédibilité")+xlab("Elo")
     )
   } else {
     
@@ -295,7 +294,7 @@ show_current_ranking <- function(clusters, scores, init_theta = NULL, show_credi
         scale_color_discrete(breaks = graph_data$player[order(graph_data$score, decreasing = T)])+
         #xlim(0, 100)+
         theme_bw()+
-        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())+ylab("")+xlab("Elo")
     )
   }
   
@@ -341,7 +340,7 @@ show_detailed_skill_per_player <- function(players, ordered = TRUE) {
   ranks <- sapply(players, function(distr) calculate_skill(distr, players))
   if (ordered)
     ranks <- ranks[order(ranks, decreasing = TRUE)]
-  print(paste0("ranks : ", ranks, collapse = ""))
+  print(paste0(c("ranks : ", ranks), collapse = " | "))
   
   graph_data <- data.frame(
     skill = ranks,
@@ -390,6 +389,37 @@ show_detailed_skill_per_player <- function(players, ordered = TRUE) {
           legend.position = "none",
           panel.grid.minor.x = element_blank())
 }
+
+show_detailed_ranking_per_player <- function(clusters) {
+  
+  new_clust_joined <- join_clusters(clusters, seq_along(clusters), count = FALSE)
+  
+  rankings_credibl <- {
+    distr <- new_clust_joined$joint_distr
+    p_ncol <- ncol(distr)
+    idx <- t(apply(distr[, -p_ncol, drop = FALSE], 1, order2))
+    spread <- diff(range(idx))
+    sapply(1:max(idx), function(position_i) {
+      apply(idx, 2, function(i) mean(i == position_i))
+    })
+  }
+  
+  graph_data <- reshape2::melt(do.call(cbind, 
+                                split(rankings_credibl, rownames(rankings_credibl))))
+  colnames(graph_data) <- c("Rang", "Nom", "Prob")
+  
+  
+  ggplot(graph_data)+
+    geom_line(aes(x = Rang, y = Prob, col = Nom))+
+    theme_bw()+
+    scale_x_reverse(breaks = 1:max(graph_data[, "Rang"]))+
+    facet_grid(rows = vars(Nom))+
+    expand_limits(y = 0)+
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+          legend.position = "none",
+          panel.grid.minor.x = element_blank())
+}
+
 
 show_IC_skill <- function(players) {
   
@@ -730,7 +760,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       clusters,
       function(distr) compute_multivariate_credibility(distr$joint_distr)
     ))
-    print(paste0("credib : ", credib, collapse = ""))
+    print(paste0(c("credib : ", round(credib, 3)), collapse = " | "))
     
     scores_players <- show_current_ranking(clusters, scores = scores, init_theta = scores_players)
     for(n in names(marginales)) {

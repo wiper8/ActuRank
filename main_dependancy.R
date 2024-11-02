@@ -1,13 +1,17 @@
-dataset <- "spike"
-granularity_level <- 1
+dataset <- "ping"
+granularity_level <- 4
 
 ping_granularity <- data.frame(
   level = c(1, 2, 3, 4),
   # TODO
-  dim_len_mu = c(10, 20, 30, 40),
-  # TODO
+  dim_len_mu = c(10, 15, 25, 35), #TODO les 3 derniers
   seuil_freq = c(0, 20, 50, 300)
 )
+if (dataset == "ping") {
+  include_exact_points <- FALSE
+  seuil_freq <- ping_granularity[granularity_level, "seuil_freq"]
+  dim_len_mu <- ping_granularity[granularity_level, "dim_len_mu"]
+}
 if (dataset == "spike") {
   include_exact_points <- TRUE
   dim_len_mu <- 20
@@ -43,10 +47,6 @@ games_matchups(scores, players)
 set.seed(2024L)
 
 if (dataset == "ping") {
-  include_exact_points <- FALSE
-  dim_len_mu <- ping_granularity[granularity_level, "dim_len_mu"]
-  seuil_freq <- ping_granularity[granularity_level, "seuil_freq"]
-  
   names_peu_freq <- scores_stats(scores, players)$games_played
   names_peu_freq <- names(names_peu_freq[names_peu_freq <= seuil_freq])
   scores <- scores[apply(scores[, 2:5], 1, function(x) !any(x %in% names_peu_freq)), ]
@@ -64,7 +64,8 @@ ggplot(graph_data)+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
   geom_point(aes(x=date, y=score, col=player), data=graph_data[graph_data$played, ])+
   scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
-  coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))
+  coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))+
+  ylab("Elo")
 
 ggplot(graph_data)+
   theme_bw()+
@@ -112,9 +113,12 @@ show_current_ranking(clusters, scores)
 
 show_current_ranking(clusters, scores, show_credibility = TRUE)
 
-show_detailed_skill(players)
+# show_detailed_skill(players)
 
 show_detailed_skill_per_player(players)
+
+# TODO erreur???
+# show_detailed_ranking_per_player(clusters)
 
 test_hyp(clusters)
 
