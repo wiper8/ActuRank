@@ -6,7 +6,7 @@ scores <- scores_init()
 
 players <- list()
 
-data <- read.csv2("data/ping.csv")
+data <- read.csv("data/ping.csv", sep = ";")
 colnames(data) <- c("joueur_A1", "joueur_A2", "joueur_B1", "joueur_B2", "win", "score_A", "score_B", "game_len", "date")
 data <- data[, 1:9]
 data <- data[-1, ]

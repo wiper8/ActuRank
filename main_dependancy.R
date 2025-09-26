@@ -1,4 +1,4 @@
-dataset <- "ping"
+dataset <- "spike"
 granularity_level <- 4
 
 ping_granularity <- data.frame(
@@ -14,7 +14,7 @@ if (dataset == "ping") {
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 20
+  dim_len_mu <- 17
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -53,7 +53,9 @@ if (dataset == "ping") {
 }
 
 # generate_GIF_images(scores)
+a <- Sys.time()
 tmp <- show_ranking_history_dependancy(scores, dataset)
+print(Sys.time() - a)
 players <- tmp[[1]]
 graph_data <- tmp[[2]]
 clusters <- tmp[[3]]
