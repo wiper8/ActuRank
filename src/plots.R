@@ -405,7 +405,7 @@ show_detailed_ranking_per_player <- function(clusters) {
   }
   
   graph_data <- reshape2::melt(do.call(cbind, 
-                                split(rankings_credibl, rownames(rankings_credibl))))
+                                       split(rankings_credibl, rownames(rankings_credibl))))
   colnames(graph_data) <- c("Rang", "Nom", "Prob")
   
   
@@ -514,7 +514,7 @@ simplifier_core <- function(joint_density, dataset, ...) {
     seuil = if(dataset == "ping") {
       1 - max(0.995, min(0.999, (0.995 - 0.999)/(500000-10000) * (nrow(joint_density$joint_distr) - 10000) + 0.999))
     } else if (dataset == "spike") {
-      1 - max(0.995, min(0.9995, (0.995 - 0.9995)/(500000-10000) * (nrow(joint_density$joint_distr) - 10000) + 0.9995))
+      1 - max(0.995, min(0.99925, (0.995 - 0.99925)/(500000-10000) * (nrow(joint_density$joint_distr) - 10000) + 0.99925))
     } else if(dataset == "pickle") {
       1 - max(0.995, min(0.9995, (0.995 - 0.9995)/(500000-10000) * (nrow(joint_density$joint_distr) - 10000) + 0.9995))
     },
@@ -522,7 +522,7 @@ simplifier_core <- function(joint_density, dataset, ...) {
     min_no_simplif = if (dataset == "ping") {
       5000
     } else if (dataset == "spike") {
-      10000
+      6000
     } else if (dataset == "pickle") {
       10000
     },
@@ -568,6 +568,7 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
     print(d)
     print(paste0("probs kept : ", round(probs_kept_counter, 6), collapse = ""))
     
+    # valider la structure de clusters
     lapply(clusters, function(joint_density) {
       if (any(is.na(joint_density$grid_id))) stop("NA dans grid_id")
       if (any(is.na(joint_density$joint_distr))) stop("NA dans joint_distr")
@@ -579,11 +580,13 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       if (any(table(unlist(lapply(clusters, `[[`, "names"))) > 1)) stop("joueurs en doublons dans clusters")
     })
     
+    # drifter la distribution temporellement
     if (d %in% as.character(drift_dates)) {
       clusters <- mapply(drift_exact3, clusters, list(clusters), SIMPLIFY = FALSE)
     }
+    
     if (d %in% as.character(game_dates)) {
-      # commencer avec le simple
+      # commencer avec le simple (1 vs 1)
       # énumérer les paires de simples jouées dans la journée
       scores_subset <- scores[scores[, "date"] == d, ]
       scores_subset <- scores_subset[is.na(scores_subset$joueur_A1), ]
@@ -678,10 +681,14 @@ show_ranking_history_dependancy <- function(scores, dataset = "ping") {
       scores_subset <- scores[scores[, "date"] == d, ]
       scores_subset <- scores_subset[!is.na(scores_subset$joueur_A1), ]
       if (nrow(scores_subset) > 0) {
-        pairs <- mapply(function(a1, a2, b1, b2) {
-          sort(c(a1, a2, b1, b2))
-        }, scores_subset$joueur_A1, scores_subset$joueur_A2,
-        scores_subset$joueur_B1, scores_subset$joueur_B2, SIMPLIFY = FALSE)
+        pairs <- mapply(
+          function(a1, a2, b1, b2) {
+            sort(c(a1, a2, b1, b2))
+          },
+          scores_subset$joueur_A1, scores_subset$joueur_A2,
+          scores_subset$joueur_B1, scores_subset$joueur_B2,
+          SIMPLIFY = FALSE
+        )
         unique_pairs <- unique(pairs)
         unique_pairs_game_i <- lapply(
           unique_pairs,

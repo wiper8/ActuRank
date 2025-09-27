@@ -440,9 +440,20 @@ likelihood_2vs2_exact <- function(joint_density, P_A_wins_pt, score, dataset) {
 }
 
 players_pairs <- function(scores) {
-  # scores <- scores[is.na(scores[, "joueur_A1"]), ] #juste trouver les paires en 1 vs 1
+  score_without_names <- scores
+  colnames(score_without_names)[2:5] <- ""
+  all_pairs <- rbind(
+    score_without_names[, 2:3],
+    score_without_names[, c(2, 4)],
+    score_without_names[, c(2, 5)],
+    score_without_names[, 3:4],
+    score_without_names[, c(3, 5)]
+  )
+  
   tmp <- apply(
-    scores[, 3:4], 1, function(x) {
+    all_pairs,
+    1,
+    function(x) {
       names(x) <- NULL
       sort(x)
     }
