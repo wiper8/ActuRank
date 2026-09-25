@@ -14,7 +14,8 @@ if (dataset == "ping") {
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 17
+  dim_len_mu <- 16
+  exclude_players <- c("Clau", "Jon", "Dave", "Lor", "AlexP")
 }
 if (dataset == "pickle") {
   include_exact_points <- TRUE
@@ -51,6 +52,9 @@ if (dataset == "ping") {
   names_peu_freq <- names(names_peu_freq[names_peu_freq <= seuil_freq])
   scores <- scores[apply(scores[, 2:5], 1, function(x) !any(x %in% names_peu_freq)), ]
 }
+if (dataset == "spike") {
+  scores <- scores[apply(scores[, 2:5], 1, function(x) !any(x %in% exclude_players)), ]
+}
 
 # generate_GIF_images(scores)
 a <- Sys.time()
@@ -61,7 +65,7 @@ graph_data <- tmp[[2]]
 clusters <- tmp[[3]]
 
 # score history
-ggplot(graph_data)+
+ggplot(graph_data) +
   theme_bw()+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
   geom_point(aes(x=date, y=score, col=player), data=graph_data[graph_data$played, ])+
@@ -128,6 +132,7 @@ show_IC_skill(players)
 
 show_skill_level(players)
 
+recommend_fair_teams(clusters[[1]], present_players = c("Will", "Éti", "Mariève", "Xav", "Phil", "Vic", "Ant"))
 recommend_next_game(players, names_present = NULL)
 
 show_current_probs_exact2(clusters)
