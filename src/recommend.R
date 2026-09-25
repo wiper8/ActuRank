@@ -46,9 +46,19 @@ recommend_fair_teams <- function(joint_density, present_players = NULL) {
     sum((abs(likelihood_2vs2_exact_prob_win_1_pt(joint_density, comb) - 0.5) + 0.5) *
       joint_density$joint_distr$p)
   })
-  cbind(probs_best_team, combins)[order(probs_best_team), ]
-  res <- combins[which.min(probs_best_team), ]
-  paste0(res[1], " & ", res[2], " vs ", res[3], " & ", res[4])
+  res <- data.frame(p = probs_best_team)
+  res <- cbind(res, combins)
+  res <- res[order(res$p), ]
+  res <- res[res$p <= 0.55 | c(TRUE, rep(FALSE, nrow(res) - 1)), ]
+  res$p <- round(res$p, 3) * 100
+
+  apply(
+    res,
+    1,
+    function(x) {
+      paste0("prob : ", x[1], "% | ", x[2], " & ", x[3], "  vs  ", x[4], " & ", x[5])
+    }
+  )
 }
 
 # code chatGPT

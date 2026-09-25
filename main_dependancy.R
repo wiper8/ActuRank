@@ -14,7 +14,7 @@ if (dataset == "ping") {
 }
 if (dataset == "spike") {
   include_exact_points <- TRUE
-  dim_len_mu <- 16
+  dim_len_mu <- 20
   exclude_players <- c("Clau", "Jon", "Dave", "Lor", "AlexP")
 }
 if (dataset == "pickle") {
@@ -65,12 +65,13 @@ graph_data <- tmp[[2]]
 clusters <- tmp[[3]]
 
 # score history
+graph_data <- graph_data[graph_data$date >= as.Date("2026-05-20"), ]
 ggplot(graph_data) +
   theme_bw()+
   geom_line(aes(x=date, y=score, col=player), linewidth=1)+
   geom_point(aes(x=date, y=score, col=player), data=graph_data[graph_data$played, ])+
   scale_color_discrete(breaks = graph_data[order(graph_data[graph_data[, 1] == max(graph_data[, 1]), "score"], decreasing = T), "player"])+
-  coord_cartesian(xlim = c(min(as.Date(scores$date)), max(as.Date(scores$date))))+
+  coord_cartesian(xlim = c(min(as.Date("2026-05-20")), max(as.Date(scores$date))))+
   ylab("Elo")
 
 ggplot(graph_data)+
